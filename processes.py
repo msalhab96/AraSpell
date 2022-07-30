@@ -1,3 +1,4 @@
+from random import random
 from typing import Union
 import re
 from typing import List
@@ -89,3 +90,44 @@ class SpacesRemover(IProcess):
 
     def execute(self, lines: List[str]):
         return list(map(self.__remove, lines))
+
+
+class RandomCharsInjector(IProcess):
+    def __init__(self, chars: str) -> None:
+        super().__init__()
+        self.chars = chars
+
+    def get_char(self) -> str:
+        return random.choice(self.chars)
+
+    def execute(self, line: str):
+        length = len(line)
+        idx = random.randint(0, length - 1)
+        return line[:idx] + self.get_char() + line[idx:]
+
+
+class RandomCharsSwapper(IProcess):
+
+    def execute(self, line: str) -> str:
+        length = len(line)
+        idx = random.randint(0, length - 2)
+        return line[:idx] + line[idx + 1] + line[idx] + line[idx + 2:]
+
+
+class RandomCharRemover(IProcess):
+
+    def execute(self, line: str) -> str:
+        length = len(line)
+        idx = random.randint(0, length - 1)
+        return line[:idx] + line[idx + 1:]
+
+
+class RandomWordsCollapsor(IProcess):
+
+    def execute(self, line: str) -> str:
+        indices = [
+            i for i, char in enumerate(line)
+            if char == ' '
+            ]
+        idx = random.choice(indices)
+        return line[: idx] + line[idx + 1:]
