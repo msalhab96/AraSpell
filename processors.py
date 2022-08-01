@@ -1,8 +1,11 @@
+import constants
 from pathlib import Path
-from random import random
+import random
 from typing import Union, Any, List
 from interfaces import IProcess, IProcessor
 import concurrent.futures
+
+from processes import RandomCharRemover, RandomCharsInjector, RandomCharsSwapper, RandomWordsCollapsor
 
 
 class FilesProcessor(IProcessor):
@@ -45,9 +48,21 @@ class TextDistorter(IProcessor):
         length = len(line)
         n = int(self.ratio * length)
         for _ in range(n):
-            line = random.choice(self.processes)(line)
+            line = random.choice(self.processes).execute(line)
         return line
 
     def dist_run(self):
         # TODO
         pass
+
+
+def get_text_distorter(ratio):
+    return TextDistorter(
+        ratio=ratio,
+        processes=[
+            RandomCharsInjector(constants.VALID_CHARS),
+            RandomCharsSwapper(),
+            RandomCharRemover(),
+            RandomWordsCollapsor()
+        ]
+    )
