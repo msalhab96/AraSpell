@@ -12,7 +12,8 @@ class Model(nn.Module):
             dec_params: dict,
             h: int,
             d_model: int,
-            device: str
+            device: str,
+            voc_size: int
             ) -> None:
         super().__init__()
         self.encoder = EncoderLayers(
@@ -27,7 +28,7 @@ class Model(nn.Module):
             device=device,
             **dec_params
         )
-
+        self.fc = nn.Linear(d_model, voc_size)
     def forward(
             self, 
             enc_inp: Tensor, 
@@ -39,44 +40,47 @@ class Model(nn.Module):
         out, att = self.decoder(
             x=dec_inp, mask=dec_mask, enc_values=enc_vals
             )
+        out = self.fc(out)
         return torch.softmax(out, dim=-1), att
 
 
-if __name__ == '__main__':
+def get_model(rank, voc_size):
     params = {
-        'd_model': 512,
+        'd_model': 256,
         'h': 8,
-        'device': 'cuda'
+        'device': f'cuda:{rank}',
+        'voc_size': voc_size
     }
 
     enc_params = {
-        'n_layers': 4,
-        'voc_size': 20,
+        'n_layers': 5,
+        'voc_size': voc_size,
         'hidden_size': 256,
         'p_dropout': 0.1
     }
 
     dec_params = {
-        'voc_size': 30,
-        'n_layers': 4,
+        'n_layers': 5,
         'p_dropout': 0.1,
-        'hidden_size': 256
+        'hidden_size': 256,
+        'voc_size': voc_size,
     }
 
     model = Model(
         enc_parms=enc_params,
         dec_params=dec_params,
         **params
-    ).cuda()
-
-    enc_inp = torch.LongTensor([[2,5,4], [3,2, 0]]).cuda()
-    enc_mask = torch.BoolTensor([[0, 0, 0], [0, 0, 1]]).cuda()
-    dec_inp = torch.LongTensor([[2,5,4,7,5,0,0], [3, 2, 8, 8, 9, 9, 8]]).cuda()
-    dec_mask = torch.BoolTensor([[0, 0, 0, 0, 0, 1,1], [0, 0, 0,0,0,0,0]]).cuda()
-
-    out, att = model(
-        enc_inp=enc_inp,
-        dec_inp=dec_inp,
-        enc_mask=enc_mask,
-        dec_mask=dec_mask
     )
+    return model
+
+    # enc_inp = torch.LongTensor([[2,5,4], [3,2, 0]]).cuda()
+    # enc_mask = torch.BoolTensor([[0, 0, 0], [0, 0, 1]]).cuda()
+    # dec_inp = torch.LongTensor([[2,5,4,7,5,0,0], [3, 2, 8, 8, 9, 9, 8]]).cuda()
+    # dec_mask = torch.BoolTensor([[0, 0, 0, 0, 0, 1,1], [0, 0, 0,0,0,0,0]]).cuda()
+
+    # out, att = model(
+    #     enc_inp=enc_inp,
+    #     dec_inp=dec_inp,
+    #     enc_mask=enc_mask,
+    #     dec_mask=dec_mask
+    # )
