@@ -1,4 +1,4 @@
-from random import random
+import random
 from typing import Union
 import re
 from typing import List
@@ -129,5 +129,7 @@ class RandomWordsCollapsor(IProcess):
             i for i, char in enumerate(line)
             if char == ' '
             ]
+        if len(indices) == 0:
+            return line
         idx = random.choice(indices)
         return line[: idx] + line[idx + 1:]
