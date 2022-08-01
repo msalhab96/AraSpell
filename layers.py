@@ -210,6 +210,7 @@ class MultiHeadSelfAtt(MultiHeadAtt):
         # don't look ahead mask of shape [B*h, Mq, Mk]
         la_mask = self.get_square_mask(query, query)
         mask = la_mask.to(self.device) | mask.to(self.device)
+        mask = torch.cumsum(mask, dim=-1) >= 2
         return mask
 
     def get_square_mask(self, query: Tensor, key: Tensor) -> Tensor:
@@ -502,4 +503,3 @@ class DecoderLayers(nn.Module):
                 mask=mask
                 )
         return out, att
-
