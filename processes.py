@@ -1,9 +1,8 @@
 import random
-from typing import Union
 import re
-from typing import List
+from typing import List, Union
 from interfaces import IProcess
-from utils import load_text_file, remove_long_spaces
+from utils import get_freq_dict, load_text_file, remove_long_spaces
 
 
 class LoadFile(IProcess):
@@ -45,6 +44,68 @@ class LengthFilter(IProcess):
             ))
 
 
+class WordsNumberFilter(IProcess):
+    def __init__(self, min_words: int, max_words: int) -> None:
+        super().__init__()
+        self.min_words = min_words
+        self.max_words = max_words
+
+    def _is_valid(self, line: str) -> bool:
+        return self.min_words < line.count(' ') < self.max_words
+
+    def execute(self, lines: List[str]):
+        return list(filter(self._is_valid, lines))
+
+
+class WordsFilter(IProcess):
+    def __init__(self, words: List[str]) -> None:
+        super().__init__()
+        self.words = set(words)
+
+    def _not_contain(self, line: str) -> bool:
+        return not any((
+            word in line for word in self.words
+            ))
+
+    def execute(self, lines: List[str]):
+        return list(filter(self._not_contain, lines))
+
+
+class SoloCharFilter(IProcess):
+
+    def _not_contain(self, line: str) -> bool:
+        return re.search('^. | . | .$', line) is None
+
+    def execute(self, lines: List[str]):
+        return list(filter(self._not_contain, lines))
+
+
+class NumbersFilter(IProcess):
+
+    def _not_contain(self, line: str) -> bool:
+        return re.search('[0-9]+', line) is None
+
+    def execute(self, lines: List[str]):
+        return list(filter(self._not_contain, lines))
+
+
+class OOVFilter(IProcess):
+    def __init__(self, max_oov: int) -> None:
+        super().__init__()
+        self.max_oov = max_oov
+        self.__freq = {}
+
+    def _is_valid(self, line: str):
+        counter = 0
+        for word in line.split(' '):
+            counter += (self.__freq[word] == 1)
+        return counter < self.max_oov
+
+    def execute(self, lines: List[str]):
+        self.__freq = get_freq_dict(lines)
+        return list(filter(self._is_valid, lines))
+
+
 class CharsRemover(IProcess):
     def __init__(self, chars: str) -> None:
         super().__init__()
@@ -54,7 +115,7 @@ class CharsRemover(IProcess):
         return re.sub(self.pat, '', line)
 
     def execute(self, lines: List[str]) -> List[str]:
-        return map(self.remove, lines)
+        return list(map(self.remove, lines))
 
 
 class RepeatedCharsCollapsor(IProcess):
