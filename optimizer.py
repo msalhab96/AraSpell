@@ -24,7 +24,7 @@ class AdamWarmup:
         self.peak = 1 / math.sqrt(self.d_model)
         self.inv_warmup_staps = 1 / math.sqrt(self.warmup_staps ** 3)
         self.counter = 0
-        # self._update_lr()
+        self._update_lr()
 
     def get_lr(self, step: int) -> float:
         return self.peak * min(
