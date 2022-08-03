@@ -1,7 +1,8 @@
 from functools import lru_cache
+import json
 import math
 import re
-from typing import Union
+from typing import List, Union
 from pathlib import Path
 import torch
 from torch import Tensor
@@ -47,3 +48,27 @@ def get_positionals(max_length: int, d_model: int) -> Tensor:
             result[pos, i] = math.sin(pos / denominator)
             result[pos, i + 1] = math.cos(pos / denominator)
     return result
+
+
+def load_json(file_path: Union[Path, str]) -> Union[dict, list]:
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    return data
+
+
+def save_json(
+        file_path: Union[Path, str], data: Union[dict, list]
+        ) -> None:
+    with open(file_path, 'w') as f:
+        json.dump(data, f)
+
+
+def get_freq_dict(data: List[str]) -> dict:
+    freq = {}
+    for item in data:
+        for word in item.split(' '):
+            if word in freq:
+                freq[word] += 1
+            else:
+                freq[word] = 1
+    return freq
