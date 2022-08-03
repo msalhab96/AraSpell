@@ -1,18 +1,26 @@
+from threading import Thread
 import constants
 from pathlib import Path
 import random
 from typing import Union, Any, List
 from interfaces import IProcess, IProcessor
-import concurrent.futures
-
-from processes import RandomCharRemover, RandomCharsInjector, RandomCharsSwapper, RandomWordsCollapsor
+from processes import (
+    RandomCharRemover,
+    RandomCharsInjector,
+    RandomCharsSwapper,
+    RandomWordsCollapsor
+    )
 
 
 class FilesProcessor(IProcessor):
     def __init__(
-            self, processes: List[IProcess]
+            self, processes: List[IProcess],
+            n_dist: int = 32
             ) -> None:
         self.processes = processes
+        self.n_dist = n_dist
+        self.__dist = False
+        self.__cache = []
 
     def file_run(self, file: Union[str, Path]) -> Any:
         result = file
@@ -25,15 +33,42 @@ class FilesProcessor(IProcessor):
             files: List[Union[str, Path]]
             ) -> Any:
         result = list(map(self.file_run, files))
+        if self.__dist is True:
+            self.__cache.append(result)
+            return
         return result
+
+    def _divde(self, data: List[Any]):
+        items_per_div = len(data) // self.n_dist
+        divs = []
+        for i in range(items_per_div):
+            start = i * items_per_div
+            end = (i + 1) * items_per_div
+            if i == (items_per_div - 1):
+                end = len(divs)
+            divs.append(data[start: end])
+        return divs
 
     def dist_run(
             self,
             files: List[Union[str, Path]]
             ) -> Any:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            result = executor.map(self.file_run, files)
-        return list(result)
+        self.__dist = True
+        self.__cache = []
+        divs = self._divde(files)
+        threads = []
+        for div in divs:
+            t = Thread(target=self.run, args=(div,))
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+        self.__dist = False
+        results = []
+        for item in self.__cache:
+            results.extend(item)
+        self.__cache = []
+        return results
 
 
 class TextDistorter(IProcessor):
