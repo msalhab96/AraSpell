@@ -103,6 +103,14 @@ def add_training_args(parser) -> None:
         '--distortion_ratio', default=0.1, type=float,
         help='The data distortion ratio'
     )
+    group.add_argument(
+        '--logger_type', default='tensor_board', type=str,
+        help='The logger type, either tensor_board or basic'
+    )
+    group.add_argument(
+        '--logdir', default='outdir/logs', type=str,
+        help='The directory to save the logs to'
+    )
 
 
 def get_preprocessing_args():
