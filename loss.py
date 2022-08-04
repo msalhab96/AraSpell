@@ -1,6 +1,7 @@
 import torch.nn as nn
 from torch import Tensor
 from torch.nn.functional import one_hot
+from torch.nn import Module
 
 
 class Loss(nn.Module):
@@ -50,7 +51,7 @@ class Loss(nn.Module):
         """
         preds = preds[:, :-1, :]
         preds = preds.reshape(-1, preds.shape[-1])
-        preds = (~preds.reshape(-1, 1)) * preds
+        preds = (~mask.reshape(-1, 1)) * preds
         return preds
 
     def forward(
@@ -66,3 +67,7 @@ class Loss(nn.Module):
         target = self.process_target(target, mask)
         preds = self.procees_preds(preds, mask)
         return self.kld(preds, target)
+
+
+def get_criterion(args, voc_szie: int) -> Module:
+    return Loss(voc_szie, args.alpha)
