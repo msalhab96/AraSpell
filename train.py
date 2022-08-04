@@ -1,19 +1,25 @@
-from data import get_data_laoder, get_dist_data_laoder
-from loss import Loss
+from pathlib import Path
+from typing import Union
+from args import get_train_args
+from data import get_train_test_loaders
+from loss import get_criterion
 from model import get_model
-from optimizer import AdamWarmup
-from processors import get_text_distorter
+from optimizer import get_optimizer
 from tokenizer import get_tokenizer
 from torch.nn.parallel import DistributedDataParallel
 import torch.distributed as dist
 from tqdm import tqdm
 import torch
-import os 
+import os
+from utils import load_state
+import socket
+from torch.multiprocessing import spawn
 
 
 class DistTrainer:
     _train_loss_key = 'train_loss'
     _test_loss_key = 'test_loss'
+
     def __init__(
             self,
             train_loader,
@@ -22,10 +28,13 @@ class DistTrainer:
             criterion,
             optimizer,
             epochs: int,
+            outdir: Union[str, Path],
             url: str,
             backend: str,
             world_size: int,
             rank: int,
+            port: int,
+            ckpt=None
             ) -> None:
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -38,12 +47,28 @@ class DistTrainer:
         self.backend = backend
         self.world_size = world_size
         self.model.cuda(self.rank)
+        self.port = port
+        self.__counter = 0
+        self.outdir = outdir
+        self.last_epoch = 0
+        if ckpt is not None:
+            self._set_state(ckpt)
         self.init()
-        
+
         self.model = DistributedDataParallel(
             self.model, device_ids=[self.rank]
             )
         self.history = dict()
+
+    def _set_state(self, ckpt_path):
+        model, optimizer, epoch, steps = load_state(ckpt_path)
+        self.model.load_state_dict(model)
+        self.optimizer.load_state_dict(optimizer, steps)
+        self.last_epoch = epoch + 1
+
+    @property
+    def is_master(self):
+        return self.rank == 0
 
     def log_results(self, epoch):
         result = ''
@@ -58,40 +83,50 @@ class DistTrainer:
         self.model = self.model.eval()
 
     def init(self):
-        os.environ['MASTER_ADDR'] = 'localhot'
-        os.environ['MASTER_PORT'] = '8008'
+        os.environ['MASTER_ADDR'] = self.url
+        os.environ['MASTER_PORT'] = str(self.port)
         dist.init_process_group(
             self.backend,
             init_method=self.url,
             world_size=self.world_size,
             rank=self.rank
             )
-        print(f'{self.rank} started!')
+
+    def _get_ckpt_state(self, epoch: int):
+        return {
+            'model': self.model.state_dict(),
+            'epoch': epoch,
+            'optimizer': self.optimizer.state_dict(),
+            'steps': self.optimizer.counter
+        }
+
+    def save_ckpt(self, epoch: int) -> None:
+        state = self._get_ckpt_state(epoch)
+        path = os.path.join(self.outdir, f'checkpoint_{epoch}.pt')
+        torch.save(state, path)
 
     def fit(self, *args, **kwargs):
-        for epoch in range(self.epochs):
+        for epoch in range(self.last_epoch, self.epochs):
+            self.train_loader.sampler.set_epoch(epoch)
             self.train()
-            if self.rank == 0:
+            if self.is_master:
                 self.test()
                 self.log_results(epoch)
+                self.save_ckpt(epoch)
+            dist.barrier()
         dist.destroy_process_group()
 
     def test(self):
         total_loss = []
         self.set_test_mode()
         for batch in tqdm(self.test_loader):
+            self.__counter += 1
             (enc_inp, dec_inp, enc_mask, dec_mask) = batch
-            # print(enc_inp.shape)
             enc_inp = enc_inp.cuda(self.rank)
             dec_inp = dec_inp.cuda(self.rank)
             preds, _ = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
-            loss = self.criterion(preds, dec_inp)
-            # print(loss.item())
+            loss = self.criterion(preds, dec_inp, dec_mask)
             total_loss.append(loss.item())
-            # print(total_loss)
-        # print(total_loss)
-        # print(f'total is {sum(total_loss)}')
-        # print(f'the length is {len(self.test_loader)}')
         total_loss = sum(total_loss)
         total_loss /= len(self.test_loader)
         if self._test_loss_key in self.history:
@@ -103,31 +138,16 @@ class DistTrainer:
         total_loss = 0
         self.set_train_mode()
         total = torch.tensor([0]).cuda(self.rank)
-        # print(len(self.train_loader))
-        for batch in tqdm(self.train_loader):
+        for batch in tqdm(self.train_loader, total=len(self.train_loader)):
             (enc_inp, dec_inp, enc_mask, dec_mask) = batch
-            
-            # print(f'rank {self.rank}, batch {enc_inp.shape}')
             enc_inp = enc_inp.cuda(self.rank)
             dec_inp = dec_inp.cuda(self.rank)
             self.optimizer.zero_grad()
             preds, _ = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
-            loss = self.criterion(preds, dec_inp)
-            # print(f'rank {self.rank}, loss: {loss.item()}')
+            loss = self.criterion(preds, dec_inp, dec_mask)
             loss.backward()
-            total_loss += loss.item()
             self.optimizer.step()
-        if self.rank == 0:
-            print('-' * 10)
-            # print(preds.shape)
-            print(torch.argmax(preds, dim=-1)[: ,:50])
-            print(dec_inp[:, :50])
-            print('-' * 10)
-            for p in self.model.parameters():
-                print(p)
-                break
-        # total_loss /= self.world_size
-        # print(f'rank {self.rank} || {total_loss}')
+            total_loss += loss.item()
         total = torch.tensor([total_loss]).cuda(self.rank)
         dist.all_reduce(total, op=dist.ReduceOp.SUM)
         if self.rank == 0:
@@ -136,63 +156,53 @@ class DistTrainer:
                 self.history[self._train_loss_key].append(total_loss)
             else:
                 self.history[self._train_loss_key] = [total_loss]
-            # print(len(self.train_loader))
-            # print(total_loss)
-            # print(self.history)
 
-def get_trainer(rank: int, world_size):
-    tokenizer = get_tokenizer()
-    dist_proc = get_text_distorter(0.15)
-    train_batch_size = 16
-    test_batch_size = 8
-    train_loader = get_dist_data_laoder(
-        'train.txt',
-        dist_proc,
-        tokenizer,
-        train_batch_size,
-        rank=rank,
-        world_size=world_size
+
+def get_trainer(rank: int, args):
+    tokenizer = get_tokenizer(args)
+    vocab_size = tokenizer.vocab_size
+    train_loader, test_loader = get_train_test_loaders(args, rank, tokenizer)
+    model = get_model(args, rank, vocab_size)
+    criterion = get_criterion(args, vocab_size)
+    optimizer = get_optimizer(args, model.parameters())
+    url = 'tcp://{}:{}'.format(
+        socket.gethostbyname(socket.gethostname()),
+        args.dist_port
     )
-    test_loader = get_data_laoder(
-        'test.txt',
-        dist_proc,
-        tokenizer,
-        test_batch_size
-    )
-    model = get_model(rank, tokenizer.vocab_size)
-    criterion = Loss(tokenizer.special_tokens.pad_id)
-    optimizer = AdamWarmup(model.parameters(), betas=[0.9, 0.98], eps=1e-9, warmup_staps=4000, d_model=512)
-    epochs = 300
-    import socket
-    
-    url = f'tcp://{socket.gethostbyname(socket.gethostname())}:8008'
-    backend = 'nccl'
     return DistTrainer(
         train_loader=train_loader,
         test_loader=test_loader,
         model=model,
         criterion=criterion,
         optimizer=optimizer,
-        epochs=epochs,
-        backend=backend,
-        world_size=world_size,
+        epochs=args.epochs,
+        backend=args.dist_backend,
+        world_size=args.n_gpus,
+        outdir=args.outdir,
         rank=rank,
-        url=url
+        port=args.dist_port,
+        url=url,
+        ckpt=args.pre_trained_path
     )
-    
-def main(rank, world_size):
-    print(f'started_rank {rank} with world_size {world_size}')
+
+
+def run(rank, args):
+    print(f'{rank} started ..')
     trainer = get_trainer(
         rank=rank,
-        world_size=world_size
+        args=args
     )
     trainer.fit()
-    
-    
-if __name__ == '__main__':
-    from torch.multiprocessing import spawn
+
+
+def main(args):
     spawn(
-        main,
-        nprocs=2,
-        args=(2,)
+        run,
+        nprocs=args.n_gpus,
+        args=(args,)
         )
+
+
+if __name__ == '__main__':
+    args = get_train_args()
+    main(args)
