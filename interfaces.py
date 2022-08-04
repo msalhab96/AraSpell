@@ -60,3 +60,18 @@ class ITokenizer(ABC):
     @abstractmethod
     def get_tokens(self):
         pass
+
+
+class ILogger(ABC):
+
+    @abstractmethod
+    def log_step():
+        pass
+
+    @abstractmethod
+    def log():
+        pass
+
+    @abstractmethod
+    def set_rank():
+        pass
