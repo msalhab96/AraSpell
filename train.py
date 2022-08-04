@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Union
 from args import get_train_args
 from data import get_train_test_loaders
+from interfaces import ILogger
+from logger import get_logger
 from loss import get_criterion
 from model import get_model
 from optimizer import get_optimizer
@@ -18,7 +20,9 @@ from torch.multiprocessing import spawn
 
 class DistTrainer:
     _train_loss_key = 'train_loss'
+    _acc_train_loss_key = 'acc_train_loss'
     _test_loss_key = 'test_loss'
+    _acc_test_loss_key = 'acc_test_loss'
 
     def __init__(
             self,
@@ -28,6 +32,7 @@ class DistTrainer:
             criterion,
             optimizer,
             epochs: int,
+            logger: ILogger,
             outdir: Union[str, Path],
             url: str,
             backend: str,
@@ -36,6 +41,7 @@ class DistTrainer:
             port: int,
             ckpt=None
             ) -> None:
+        self.logger = logger
         self.train_loader = train_loader
         self.test_loader = test_loader
         self.model = model
@@ -51,6 +57,7 @@ class DistTrainer:
         self.__counter = 0
         self.outdir = outdir
         self.last_epoch = 0
+        self.logger.set_rank(self.rank)
         if ckpt is not None:
             self._set_state(ckpt)
         self.init()
@@ -71,10 +78,16 @@ class DistTrainer:
         return self.rank == 0
 
     def log_results(self, epoch):
-        result = ''
-        for key, value in self.history.items():
-            result += f'{key}: {str(value[-1])}, '
-        print(result[:-2])
+        self.logger.log(
+            key=self._acc_train_loss_key,
+            value=self.history[self._train_loss_key][-1],
+            step=epoch,
+            end=''
+        )
+        self.logger.log(
+            key=self._acc_test_loss_key,
+            value=self.history[self._test_loss_key][-1]
+        )
 
     def set_train_mode(self) -> None:
         self.model = self.model.train()
@@ -124,7 +137,7 @@ class DistTrainer:
             (enc_inp, dec_inp, enc_mask, dec_mask) = batch
             enc_inp = enc_inp.cuda(self.rank)
             dec_inp = dec_inp.cuda(self.rank)
-            preds, _ = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
+            preds, att = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
             loss = self.criterion(preds, dec_inp, dec_mask)
             total_loss.append(loss.item())
         total_loss = sum(total_loss)
@@ -143,10 +156,11 @@ class DistTrainer:
             enc_inp = enc_inp.cuda(self.rank)
             dec_inp = dec_inp.cuda(self.rank)
             self.optimizer.zero_grad()
-            preds, _ = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
+            preds, att = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
             loss = self.criterion(preds, dec_inp, dec_mask)
             loss.backward()
             self.optimizer.step()
+            self.logger.log_step(self._train_loss_key, loss.item())
             total_loss += loss.item()
         total = torch.tensor([total_loss]).cuda(self.rank)
         dist.all_reduce(total, op=dist.ReduceOp.SUM)
@@ -159,6 +173,7 @@ class DistTrainer:
 
 
 def get_trainer(rank: int, args):
+    logger = get_logger(args)
     tokenizer = get_tokenizer(args)
     vocab_size = tokenizer.vocab_size
     train_loader, test_loader = get_train_test_loaders(args, rank, tokenizer)
@@ -176,6 +191,7 @@ def get_trainer(rank: int, args):
         criterion=criterion,
         optimizer=optimizer,
         epochs=args.epochs,
+        logger=logger,
         backend=args.dist_backend,
         world_size=args.n_gpus,
         outdir=args.outdir,
