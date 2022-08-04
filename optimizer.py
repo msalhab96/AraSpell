@@ -1,12 +1,12 @@
 from torch.optim import Adam
-from typing import Tuple
+from typing import Iterator, Tuple
 import math
 
 
 class AdamWarmup:
     def __init__(
             self,
-            parameters,
+            parameters: Iterator,
             betas: Tuple[float, float],
             eps: float,
             warmup_staps: int,
@@ -47,3 +47,17 @@ class AdamWarmup:
 
     def state_dict(self):
         return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict, counter) -> None:
+        self.optimizer.load_state_dict(state_dict)
+        self.counter = counter
+
+
+def get_optimizer(args, parameters: Iterator) -> object:
+    return AdamWarmup(
+        parameters=parameters,
+        betas=args.opt_betas,
+        eps=args.opt_eps,
+        warmup_staps=args.warmup_staps,
+        d_model=args.d_model
+    )
