@@ -1,18 +1,16 @@
 from __future__ import annotations
+import os
 import constants
 from dataclasses import dataclass
 from pathlib import Path
 from typing import (
-    Callable,
     List,
     Tuple,
     Union
     )
-from unittest import result
 from decorators import check_token
 from interfaces import ITokenizer
 from utils import load_json, save_json
-from functools import wraps
 
 PAD = '<PAD>'
 SOS = '<SOS>'
@@ -177,7 +175,9 @@ class BaseTokenizer(ITokenizer):
     def ids2tokens(self, ids: List[str]) -> List[str]:
         return list(map(lambda x: self._id_to_token[x], ids))
 
-    def tokenize(self, sentence: str, add_sos=False, add_eos=False) -> List[int]:
+    def tokenize(
+            self, sentence: str, add_sos=False, add_eos=False
+            ) -> List[int]:
         sentence = self.preprocess_tokens(sentence)
         result = list(map(
             lambda x: self._token_to_id.get(x, self.special_tokens.pad_id),
@@ -207,8 +207,17 @@ class CharTokenizer(BaseTokenizer):
         return list(sentence)
 
 
-def get_tokenizer():
+def get_tokenizer(args):
+    dirname = os.path.dirname(args.tokenizer_path)
+    if len(dirname) > 0 and os.path.exists(dirname) is False:
+        os.makedirs(dirname)
     tokenizer = CharTokenizer()
-    tokenizer = tokenizer.add_pad_token().add_sos_token().add_eos_token()
-    tokenizer.set_tokenizer(constants.VALID_CHARS)
+    if os.path.exists(args.tokenizer_path) is True:
+        tokenizer.load_tokenizer(args.tokenizer_path)
+        print(f'tokenizer {args.tokenizer_path} loadded')
+    else:
+        tokenizer = tokenizer.add_pad_token().add_sos_token().add_eos_token()
+        tokenizer.set_tokenizer(constants.VALID_CHARS)
+        tokenizer.save_tokenizer(args.tokenizer_path)
+        print(f'tokenizer saved to {args.tokenizer_path}')
     return tokenizer
