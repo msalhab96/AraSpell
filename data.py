@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import Tuple, Union
 from interfaces import ITokenizer
@@ -16,8 +17,8 @@ class ArabicData(Dataset):
             pad_idx: int,
             max_len: int,
             ratio: float,
-            dist_key='distorted',
-            clean_key='clean'
+            dist_key: str,
+            clean_key: str
             ) -> None:
         super().__init__()
         self.data_path = data_path
@@ -27,7 +28,6 @@ class ArabicData(Dataset):
         self.clean_key = clean_key
         self.pad_idx = pad_idx
         self.max_dist_len = int(ratio * max_len) + max_len
-        self.__data = []
         self.df = pd.read_csv(data_path)
 
     def pad(self, line: list, max_len: int) -> Tuple[list, int]:
@@ -74,19 +74,24 @@ def get_dist_data_laoder(
         ratio,
         batch_size,
         rank,
-        world_size
+        world_size,
+        dist_key,
+        clean_key
         ):
     dataset = ArabicData(
         data_path=data_path,
         tokenizer=tokenizer,
         pad_idx=tokenizer.special_tokens.pad_id,
         max_len=max_len,
-        ratio=ratio
+        ratio=ratio,
+        dist_key=dist_key,
+        clean_key=clean_key
     )
     sampler = DistributedSampler(
         dataset=dataset,
         rank=rank,
-        num_replicas=world_size
+        num_replicas=world_size,
+        drop_last=True
     )
     return DataLoader(
         dataset,
@@ -103,16 +108,48 @@ def get_data_laoder(
         batch_size,
         max_len,
         ratio,
+        dist_key,
+        clean_key
         ):
     dataset = ArabicData(
         data_path=data_path,
         tokenizer=tokenizer,
         pad_idx=tokenizer.special_tokens.pad_id,
         max_len=max_len,
-        ratio=ratio
+        ratio=ratio,
+        dist_key=dist_key,
+        clean_key=clean_key
     )
     return DataLoader(
         dataset,
         batch_size=batch_size,
         drop_last=True
         )
+
+
+def get_train_test_loaders(args, rank: int, tokenizer: ITokenizer) -> tuple:
+    assert os.path.exists(args.train_path), \
+        f'{args.train_path} does not exist!'
+    assert os.path.exists(args.test_path), \
+        f'{args.test_path} does not exist!'
+    train_loader = get_dist_data_laoder(
+        data_path=args.train_path,
+        tokenizer=tokenizer,
+        max_len=args.max_len,
+        ratio=args.distortion_ratio,
+        batch_size=args.batch_size,
+        rank=rank,
+        world_size=args.n_gpus,
+        dist_key=args.dist_key,
+        clean_key=args.clean_key
+    )
+    test_loader = get_data_laoder(
+        data_path=args.test_path,
+        tokenizer=tokenizer,
+        batch_size=args.batch_size,
+        max_len=args.max_len,
+        ratio=args.distortion_ratio,
+        dist_key=args.dist_key,
+        clean_key=args.clean_key
+    )
+    return train_loader, test_loader
