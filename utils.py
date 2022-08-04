@@ -72,3 +72,12 @@ def get_freq_dict(data: List[str]) -> dict:
             else:
                 freq[word] = 1
     return freq
+
+
+def load_state(state_path: Union[Path, str]):
+    state = torch.load(state_path)
+    model = state['model']
+    optimizer = state['optimizer']
+    epoch = state['epoch']
+    steps = state['steps']
+    return model, optimizer, epoch, steps
