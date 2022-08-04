@@ -77,6 +77,10 @@ def get_freq_dict(data: List[str]) -> dict:
 def load_state(state_path: Union[Path, str]):
     state = torch.load(state_path)
     model = state['model']
+    model = {
+        key.replace('module.', ''): value
+        for key, value in model.items()
+        }
     optimizer = state['optimizer']
     epoch = state['epoch']
     steps = state['steps']
