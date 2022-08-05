@@ -77,7 +77,7 @@ class DistTrainer:
     def is_master(self):
         return self.rank == 0
 
-    def log_results(self, epoch):
+    def log_results(self, epoch: int):
         self.logger.log(
             key=self._acc_train_loss_key,
             value=self.history[self._train_loss_key][-1],
@@ -146,6 +146,8 @@ class DistTrainer:
             self.history[self._test_loss_key].append(total_loss)
         else:
             self.history[self._test_loss_key] = [total_loss]
+        h = att.shape[0] // dec_inp.shape[0]
+        self.logger.log_img('enc_dec_att', att[:h, ...])
 
     def train(self):
         total_loss = 0
