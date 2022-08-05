@@ -129,6 +129,7 @@ class DistTrainer:
             dist.barrier()
         dist.destroy_process_group()
 
+    @torch.no_grad()
     def test(self):
         total_loss = []
         self.set_test_mode()
