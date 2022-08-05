@@ -75,3 +75,7 @@ class ILogger(ABC):
     @abstractmethod
     def set_rank():
         pass
+
+    @abstractmethod
+    def log_img():
+        pass
