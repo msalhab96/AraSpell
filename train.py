@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Union
 from args import get_train_args
+from callback import TermCallback, get_callback
 from data import get_train_test_loaders
 from interfaces import ILogger
 from logger import get_logger
@@ -32,6 +33,7 @@ class DistTrainer:
             criterion,
             optimizer,
             epochs: int,
+            callback: TermCallback,
             logger: ILogger,
             outdir: Union[str, Path],
             url: str,
@@ -41,6 +43,7 @@ class DistTrainer:
             port: int,
             ckpt=None
             ) -> None:
+        self.callback = callback
         self.logger = logger
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -122,10 +125,18 @@ class DistTrainer:
         for epoch in range(self.last_epoch, self.epochs):
             self.train_loader.sampler.set_epoch(epoch)
             self.train()
+            # TODO: Add model random init testing and logging
+            # TODO: Isolate the code below in a single method
             if self.is_master:
                 self.test()
                 self.log_results(epoch)
-                self.save_ckpt(epoch)
+                save_ckpt, terminate = self.callback(
+                    self.history[self._test_loss_key][-1]
+                    )
+                if save_ckpt is True:
+                    self.save_ckpt(epoch)
+                if terminate is True:
+                    exit()
             dist.barrier()
         dist.destroy_process_group()
 
@@ -176,6 +187,7 @@ class DistTrainer:
 
 
 def get_trainer(rank: int, args):
+    callback = get_callback(args)
     logger = get_logger(args)
     tokenizer = get_tokenizer(args)
     vocab_size = tokenizer.vocab_size
@@ -194,6 +206,7 @@ def get_trainer(rank: int, args):
         criterion=criterion,
         optimizer=optimizer,
         epochs=args.epochs,
+        callback=callback,
         logger=logger,
         backend=args.dist_backend,
         world_size=args.n_gpus,
