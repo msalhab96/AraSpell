@@ -79,3 +79,10 @@ class ILogger(ABC):
     @abstractmethod
     def log_img():
         pass
+
+
+class IPredictor(ABC):
+    
+    @abstractmethod
+    def predict():
+        pass
