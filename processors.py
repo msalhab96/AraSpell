@@ -91,6 +91,20 @@ class TextDistorter(IProcessor):
         pass
 
 
+class TextProcessor(IProcessor):
+    def __init__(self, processes: List[IProcess]) -> None:
+        super().__init__()
+        self.processes = processes
+
+    def  run(self, sentence: str):
+        for process in self.processes:
+            sentence = process.execute(sentence)
+        return sentence
+
+    def dist_run(self, sentence: str) -> str:
+        return self.run(sentence)
+
+
 def get_text_distorter(ratio):
     return TextDistorter(
         ratio=ratio,
