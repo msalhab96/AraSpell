@@ -81,16 +81,18 @@ class DistTrainer:
         return self.rank == 0
 
     def log_results(self, epoch: int):
-        self.logger.log(
-            key=self._acc_train_loss_key,
-            value=self.history[self._train_loss_key][-1],
-            step=epoch,
-            end=''
-        )
-        self.logger.log(
-            key=self._acc_test_loss_key,
-            value=self.history[self._test_loss_key][-1]
-        )
+        if self._train_loss_key in self.history:
+            self.logger.log(
+                key=self._acc_train_loss_key,
+                value=self.history[self._train_loss_key][-1],
+                step=epoch,
+                end=''
+            )
+        if self._test_loss_key in self.history:
+            self.logger.log(
+                key=self._acc_test_loss_key,
+                value=self.history[self._test_loss_key][-1]
+            )
 
     def set_train_mode(self) -> None:
         self.model = self.model.train()
@@ -120,23 +122,32 @@ class DistTrainer:
         state = self._get_ckpt_state(epoch)
         path = os.path.join(self.outdir, f'checkpoint_{epoch}.pt')
         torch.save(state, path)
+        print(f'checkpoint {path} saved!')
+
+    def test_and_log(self, epoch):
+        if self.is_master:
+            self.test()
+            self.log_results(epoch)
+            save_ckpt, terminate = self.callback(
+                self.history[self._test_loss_key][-1]
+                )
+            if epoch == -1:
+                # When the model just loadded and no trainin introduced
+                return
+            if save_ckpt is True:
+                self.save_ckpt(epoch)
+            if terminate is True:
+                print('The model is not improving any more!')
+                print('terminated!')
+                exit()
 
     def fit(self, *args, **kwargs):
+        # test the model before training
+        self.test_and_log(-1)
         for epoch in range(self.last_epoch, self.epochs):
             self.train_loader.sampler.set_epoch(epoch)
             self.train()
-            # TODO: Add model random init testing and logging
-            # TODO: Isolate the code below in a single method
-            if self.is_master:
-                self.test()
-                self.log_results(epoch)
-                save_ckpt, terminate = self.callback(
-                    self.history[self._test_loss_key][-1]
-                    )
-                if save_ckpt is True:
-                    self.save_ckpt(epoch)
-                if terminate is True:
-                    exit()
+            self.test_and_log(epoch)
             dist.barrier()
         dist.destroy_process_group()
 
@@ -237,4 +248,5 @@ def main(args):
 
 if __name__ == '__main__':
     args = get_train_args()
+    print(args)
     main(args)
