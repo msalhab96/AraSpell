@@ -52,7 +52,9 @@ class MultiHeadAtt(nn.Module):
             self,
             Q: Tensor,
             K: Tensor,
-            mask: Union[Tensor, None] = None
+            mask: Union[Tensor, None] = None,
+            query_mask: Union[Tensor, None] = None,
+            key_mask: Union[Tensor, None] = None
             ) -> Tensor:
         """Calculates the scaled attention map
         by calculating softmax(matmul(Q, K.T)/sqrt(dk))
@@ -69,16 +71,49 @@ class MultiHeadAtt(nn.Module):
         result = torch.matmul(Q, K)
         result = result / self.sqrt_dk
         if mask is not None:
+            # Used for self attention!
             mask = self.get_mask(Q, K, mask)
             result = result.masked_fill(mask, -1e9)
+        if all([
+                item is not None for item in [query_mask, key_mask]
+                ]):
+            mask = self.get_key_query_mask(query_mask, key_mask)
+            result = result.masked_fill(mask, -1e9)
         return self.softmax(result)
+
+    def get_key_query_mask(
+            self, query_mask: Tensor, key_mask: Tensor
+            ) -> Tensor:
+        """Given the query and the key masks of shape [B, M], it returns
+        the encoder decoder mask of shape [B * h, Tq, Tk].
+
+        Args:
+            query_mask (Tensor): The query mask of shape [B, Tq]
+            key_mask (Tensor): The key mask of shape [B, Tk]
+
+        Returns:
+            Tensor: The encoder-decoder mask of shape [B, Tq, Tk].
+        """
+        batch_size, t_query = query_mask.shape
+        # [B, h * Tq]
+        mask = key_mask.repeat(1, self.h * t_query)
+        # [B * h, Tq, Tk]
+        mask = mask.reshape(batch_size * self.h,  t_query, -1)
+        # [B, h * Tq]
+        query_mask = query_mask.repeat(1, self.h)
+        # [B * h, Tq, 1]
+        query_mask = query_mask.view(self.h * batch_size, -1, 1)
+        mask = mask | query_mask
+        return mask
 
     def perform_att(
             self,
             Q: Tensor,
             K: Tensor,
             V: Tensor,
-            mask: Union[Tensor, None] = None
+            mask: Union[Tensor, None] = None,
+            query_mask: Union[Tensor, None] = None,
+            key_mask: Union[Tensor, None] = None
             ) -> Tensor:
         """Performs multi-head scaled attention
         by calculating softmax(matmul(Q, K.T)/sqrt(dk)).V
@@ -94,7 +129,9 @@ class MultiHeadAtt(nn.Module):
             [B * h, Tq, Tk] and the scaled attention value of
             shape [B * h, Tq, dk].
         """
-        att = self._get_scaled_att(Q, K, mask=mask)
+        att = self._get_scaled_att(
+            Q, K, mask=mask, query_mask=query_mask, key_mask=key_mask
+            )
         result = torch.matmul(att, V)
         return att, result
 
@@ -153,7 +190,9 @@ class MultiHeadAtt(nn.Module):
             key: Tensor,
             query: Tensor,
             value: Tensor,
-            mask: Union[Tensor, None] = None
+            mask: Union[Tensor, None] = None,
+            query_mask: Union[Tensor, None] = None,
+            key_mask: Union[Tensor, None] = None
             ) -> Tuple[Tensor, Tensor]:
         """Performs multi-head attention on the provided key, query and value
         Args:
@@ -172,7 +211,9 @@ class MultiHeadAtt(nn.Module):
         V = self.fc_value(value)
         (Q, K, V) = self._change_dim(Q, K, V)  # [h * B, T, dk]
         K = K.permute(0, 2, 1)  # [h, T, B, dk]
-        att, result = self.perform_att(Q, K, V, mask=mask)
+        att, result = self.perform_att(
+            Q, K, V, mask=mask, query_mask=query_mask, key_mask=key_mask
+            )
         result = result.view(self.h, b, s, self.dk)
         result = result.permute(1, 2, 0, 3)
         result = result.contiguous().view(b, s, -1)
@@ -374,7 +415,9 @@ class DecoderLayer(nn.Module):
             self,
             x: Tensor,
             encoder_values: Tensor,
-            mask: Union[Tensor, None] = None
+            mask: Union[Tensor, None] = None,
+            query_mask: Union[Tensor, None] = None,
+            key_mask: Union[Tensor, None] = None
             ) -> Tuple[Tensor, Tensor, Tensor]:
         """Pass the data into the decoder blocks which they are:
         - MMHA
@@ -398,7 +441,11 @@ class DecoderLayer(nn.Module):
         _, out = self.mhsa(x, x, x, mask=mask)
         out_1 = self.add_and_norm_1(x, out)
         att, out = self.mha(
-            query=out_1, key=encoder_values, value=encoder_values
+            query=out_1,
+            key=encoder_values,
+            value=encoder_values,
+            query_mask=query_mask,
+            key_mask=key_mask
             )
         out = self.add_and_norm_2(out_1, out)
         out_1 = self.ff(out)
@@ -494,12 +541,20 @@ class DecoderLayers(nn.Module):
             for _ in range(n_layers)
         ])
 
-    def forward(self, x: Tensor, mask: Tensor, enc_values: Tensor):
+    def forward(
+            self,
+            x: Tensor,
+            mask: Tensor,
+            enc_values: Tensor,
+            key_mask: Union[Tensor, None] = None
+            ):
         out = self.emb(x)
         for layer in self.layers:
             out, att = layer(
                 x=out,
                 encoder_values=enc_values,
-                mask=mask
+                mask=mask,
+                query_mask=mask,
+                key_mask=key_mask
                 )
         return out, att
