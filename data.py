@@ -50,9 +50,9 @@ class ArabicData(Dataset):
 
     def _get_distorted(self, idx: int) -> Tuple[Tensor, Tensor]:
         item = self.df.iloc[idx][self.dist_key]
-        item = self.tokenizer.tokenize(item)
+        item = self.tokenizer.tokenize(item, add_eos=True)
         mask = [False] * len(item)
-        item, diff = self.pad(item, self.max_dist_len)
+        item, diff = self.pad(item, self.max_dist_len + 1)
         mask += [True] * diff
         item = torch.LongTensor(item)
         mask = torch.BoolTensor(mask)
@@ -123,7 +123,8 @@ def get_data_laoder(
     return DataLoader(
         dataset,
         batch_size=batch_size,
-        drop_last=True
+        drop_last=True,
+        shuffle=True
         )
 
 
