@@ -172,7 +172,7 @@ class BaseTokenizer(ITokenizer):
         }
         save_json(save_path, data)
 
-    def ids2tokens(self, ids: List[str]) -> List[str]:
+    def ids2tokens(self, ids: List[int]) -> List[str]:
         return list(map(lambda x: self._id_to_token[x], ids))
 
     def tokenize(
