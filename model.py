@@ -38,10 +38,17 @@ class Model(nn.Module):
             ):
         enc_vals = self.encoder(x=enc_inp, mask=enc_mask)
         out, att = self.decoder(
-            x=dec_inp, mask=dec_mask, enc_values=enc_vals
+            x=dec_inp, mask=dec_mask, enc_values=enc_vals, key_mask=enc_mask
             )
         out = self.fc(out)
         return nn.functional.log_softmax(out, dim=-1), att
+
+    def predict(self, dec_inp: Tensor, enc_inp: Tensor):
+        if dec_inp.shape[0] == 1:
+            enc_inp = self.encoder(x=enc_inp, mask=None)
+        out, att = self.decoder(x=dec_inp, mask=None)
+        out = self.fc(out)
+        return enc_inp, nn.functional.log_softmax(out, dim=-1), att
 
 
 def get_model(args, rank: int, voc_size: int) -> nn.Module:
