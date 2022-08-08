@@ -14,7 +14,29 @@ The data set used is Wikipedia dataset and can be found [here](https://www.kaggl
 | 0.15   | [train_15.csv]()        | [test_15.csv]() |
 
 # Setup
-To be added
+### Setup development environment
+* create enviroment 
+```bash
+python -m venv env
+```
+* activate the enviroment
+```bash
+source env/bin/activate
+```
+* install pytorch
+
+pick the version with the proper cuda version for your hardware from [here](https://pytorch.org/) (optional)
+```bash
+pip install torch --extra-index-url https://download.pytorch.org/whl/cu116
+```
+* install the required dependencies
+```bash
+pip install -r requirements.txt
+```
+### Setting up docker image
+```bash
+docker build . 
+```
 
 # Try it out
 To be added
