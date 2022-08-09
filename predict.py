@@ -41,15 +41,23 @@ class BasePredictor(IPredictor):
     def process_text(self, sentence: str) -> Tensor:
         sentence = self.processor.run(sentence)
         assert len(sentence) != 0, 'The cleaned sentence\'s length is Zeros!'
-        tokens = self.tokenizer.tokenize(sentence)
+        tokens = self.tokenizer.tokenize(sentence, add_eos=True)
         input = torch.LongTensor([tokens])
         input = input.to(self.device)
         return input
 
     def get_dec_start(self) -> Tensor:
-        input = torch.LongTensor[[self.sos]]
+        input = torch.LongTensor([[self.sos]])
         input = input.to(self.device)
         return input
+
+    def finalize(self, results: Tensor):
+        results = results[0].tolist()
+        results = results[1:]
+        if results[-1] == self.eos:
+            results = results[:-1]
+        results = self.tokenizer.ids2tokens(results)
+        return ''.join(results)
 
 
 class GreedyPredictor(BasePredictor):
@@ -67,7 +75,7 @@ class GreedyPredictor(BasePredictor):
     def predict(self, sentence: str):
         enc_inp = self.process_text(sentence)
         dec_inp = self.get_dec_start()
-        while self.is_terminated(dec_inp)[0] is False:
+        while self.is_terminated(dec_inp)[0].item() is False:
             preds, _ = self.model(
                 enc_inp=enc_inp,
                 dec_inp=dec_inp,
@@ -75,10 +83,7 @@ class GreedyPredictor(BasePredictor):
                 dec_mask=None
                 )
             preds = torch.argmax(preds, dim=-1)
-            dec_inp = torch.cat([dec_inp, preds[..., -1]], dim=-1)
-        results = dec_inp[0].tolist()
-        results = results[1:]
-        if results[-1] == self.eos:
-            results = results[:-1]
-        results = self.tokenizer.ids2tokens(results)
-        return ''.join(results)
+            preds = preds[0, -1]
+            preds = preds.view(1, 1)
+            dec_inp = torch.cat([dec_inp, preds], dim=-1)
+        return self.finalize(dec_inp)
