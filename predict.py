@@ -87,3 +87,55 @@ class GreedyPredictor(BasePredictor):
             preds = preds.view(1, 1)
             dec_inp = torch.cat([dec_inp, preds], dim=-1)
         return self.finalize(dec_inp)
+
+
+class BeamPredictor(BasePredictor):
+    def __init__(
+            self,
+            model: Module,
+            tokenizer: ITokenizer,
+            max_len: int,
+            processor: IProcessor,
+            device: str,
+            beam_width: int,
+            alpha: int
+            ) -> None:
+        super().__init__(
+            model, tokenizer, max_len, processor, device
+            )
+        self.alpha = alpha
+        self.beam_width = beam_width
+
+    def _get_updated_item(
+            self, item: tuple, idx: Tensor, log_p: Tensor
+            ) -> tuple:
+        preds = torch.cat([item[0], idx.view(1, 1)], dim=-1)
+        length = preds.shape[0]
+        score = item[0] + log_p.item()
+        norm_score = score / (length ** self.alpha)
+        return preds, score, norm_score
+
+    def predict(self, sentence: str):
+        enc_inp = self.process_text(sentence)
+        # [Prediction, score, normalized score]
+        in_progress = [(self.get_dec_start(), 0, 0)]
+        completed = []
+        for item in in_progress:
+            temp = []
+            preds, _ = self.model(
+                enc_inp=enc_inp,
+                dec_inp=item[0],
+                enc_mask=None,
+                dec_mask=None
+                )
+            values, indices = torch.topk(preds, k=self.beam_width, dim=-1)
+            for log_p, idx in zip(values, indices):
+                temp.append(self._get__updated_item(item, idx, log_p))
+            temp = sorted(temp, key=lambda x: x[-1], reverse=True)
+            temp = temp[:self.beam_width - len(completed)]
+            completed.extend(
+                list(filter(lambda x: x[0][-1] == self.eos, temp))
+                )
+            in_progress = list(filter(lambda x: x[0][-1] != self.eos, temp))
+        results = max(completed, key=lambda x: x[-1])
+        return self.finalize(results[0])
