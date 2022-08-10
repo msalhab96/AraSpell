@@ -50,7 +50,7 @@ class ArabicData(Dataset):
 
     def _get_distorted(self, idx: int) -> Tuple[Tensor, Tensor]:
         item = self.df.iloc[idx][self.dist_key]
-        item = self.tokenizer.tokenize(item, add_eos=True)
+        item = self.tokenizer.tokenize(item, add_sos=True, add_eos=True)
         mask = [False] * len(item)
         item, diff = self.pad(item, self.max_dist_len + 1)
         mask += [True] * diff
