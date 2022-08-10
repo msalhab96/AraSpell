@@ -168,7 +168,9 @@ class MultiHeadAtt(nn.Module):
         result = self._reshape(*args)  # [B, T, h, dk]
         result = self._pre_permute(*result)  # [h, B, T, dk]
         return [
-            item.contiguous().view(-1, item.shape[2], item.shape[3])
+            item.permute(1, 0, 2, 3).contiguous().view(
+                -1, item.shape[2], item.shape[3]
+                )
             for item in result
         ]
 
@@ -214,8 +216,8 @@ class MultiHeadAtt(nn.Module):
         att, result = self.perform_att(
             Q, K, V, mask=mask, query_mask=query_mask, key_mask=key_mask
             )
-        result = result.view(self.h, b, s, self.dk)
-        result = result.permute(1, 2, 0, 3)
+        result = result.view(b, self.h, s, self.dk)
+        result = result.permute(0, 2, 1, 3)
         result = result.contiguous().view(b, s, -1)
         result = torch.cat([query, result], dim=-1)
         result = self.proj_fc(result)
@@ -360,7 +362,7 @@ class EncoderLayer(nn.Module):
         Returns:
             Tensor: The result out of the self attention of shape [B, M, d]
         """
-        _, out = self.mhsa(x, x, x)
+        _, out = self.mhsa(x, x, x, query_mask=mask, key_mask=mask)
         out = self.mhsa_add_and_norm(x, out)
         ff_out = self.ff(out)
         out = self.ff_add_and_norm(out, ff_out)
