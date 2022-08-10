@@ -43,10 +43,20 @@ class Model(nn.Module):
         out = self.fc(out)
         return nn.functional.log_softmax(out, dim=-1), att
 
-    def predict(self, dec_inp: Tensor, enc_inp: Tensor):
-        if dec_inp.shape[0] == 1:
-            enc_inp = self.encoder(x=enc_inp, mask=None)
-        out, att = self.decoder(x=dec_inp, mask=None)
+    def predict(
+            self,
+            dec_inp: Tensor,
+            enc_inp: Tensor,
+            enc_mask=None,
+            dec_mask=None,
+            *args,
+            **kwargs
+            ):
+        if dec_inp.shape[1] == 1:
+            enc_inp = self.encoder(x=enc_inp, mask=enc_mask)
+        out, att = self.decoder(
+            x=dec_inp, mask=dec_mask, enc_values=enc_inp, key_mask=enc_mask
+            )
         out = self.fc(out)
         return enc_inp, nn.functional.log_softmax(out, dim=-1), att
 
