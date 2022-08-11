@@ -166,12 +166,13 @@ def get_train_args():
     return parser.parse_args()
 
 
-def get_model_args(args, voc_size: int, rank: int) -> dict:
+def get_model_args(args, voc_size: int, rank: int, pad_idx: int) -> dict:
     enc_params = {
         'n_layers': args.n_layers,
         'voc_size': voc_size,
         'hidden_size': args.hidden_size,
-        'p_dropout': args.p_dropout
+        'p_dropout': args.p_dropout,
+        'pad_idx': pad_idx
     }
     params = {
         'd_model': args.d_model,
@@ -184,6 +185,7 @@ def get_model_args(args, voc_size: int, rank: int) -> dict:
         'p_dropout': args.p_dropout,
         'hidden_size': args.hidden_size,
         'voc_size': voc_size,
+        'pad_idx': pad_idx
     }
 
     return {

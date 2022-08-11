@@ -61,7 +61,7 @@ class Model(nn.Module):
         return enc_inp, nn.functional.log_softmax(out, dim=-1), att
 
 
-def get_model(args, rank: int, voc_size: int) -> nn.Module:
+def get_model(args, rank: int, voc_size: int, pad_idx: int) -> nn.Module:
     return Model(
-        **get_model_args(args, voc_size, rank)
+        **get_model_args(args, voc_size, rank, pad_idx)
     )
