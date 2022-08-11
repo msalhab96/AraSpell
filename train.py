@@ -203,7 +203,12 @@ def get_trainer(rank: int, args):
     tokenizer = get_tokenizer(args)
     vocab_size = tokenizer.vocab_size
     train_loader, test_loader = get_train_test_loaders(args, rank, tokenizer)
-    model = get_model(args, rank, vocab_size)
+    model = get_model(
+        args,
+        rank,
+        vocab_size,
+        pad_idx=tokenizer.special_tokens.pad_id
+        )
     criterion = get_criterion(args, vocab_size)
     optimizer = get_optimizer(args, model.parameters())
     url = 'tcp://{}:{}'.format(

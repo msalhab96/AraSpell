@@ -461,12 +461,14 @@ class PositionalEmb(nn.Module):
             self,
             voc_size: int,
             d_model: int,
+            pad_idx: int,
             device: str
             ) -> None:
         super().__init__()
         self.emb = nn.Embedding(
             num_embeddings=voc_size,
             embedding_dim=d_model,
+            padding_idx=pad_idx
         )
         self.device = device
         self.d_model = d_model
@@ -487,12 +489,14 @@ class EncoderLayers(nn.Module):
             hidden_size: int,
             h: int,
             p_dropout: float,
+            pad_idx: int,
             device: str
             ) -> None:
         super().__init__()
         self.emb = PositionalEmb(
             voc_size=voc_size,
             d_model=d_model,
+            pad_idx=pad_idx,
             device=device
         )
         self.layers = nn.ModuleList([
@@ -524,12 +528,14 @@ class DecoderLayers(nn.Module):
             h: int,
             p_dropout: float,
             hidden_size: int,
+            pad_idx: int,
             device: str
             ) -> None:
         super().__init__()
         self.emb = PositionalEmb(
             voc_size=voc_size,
             d_model=d_model,
+            pad_idx=pad_idx,
             device=device
         )
         self.layers = nn.ModuleList([
