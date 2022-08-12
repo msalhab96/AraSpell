@@ -50,9 +50,10 @@ To be added
 * Download one of the published model
 * Prepare the dataset as mentioned in [here](#ready)
 * run the following command to train the model
+
 ```bash
 python train.py --pre_trained_path path/to/checkpoint.pt
-```bash
+```
 
 # Training on Other Languages
 There are 2 different ways you can train on your data:
@@ -80,11 +81,13 @@ data
 ```
 * Change the valid characters in the constants.py file according to your language
 * run the below command to process the data
+
 ```bash
 python process_data.py
 ```
 * Split your data into train, test and dev CSV files
 * Start the training using the following command after changing the value to fit your needs
+
 ```bash
 python train.py --epochs number_of_epochs --n_gpus max_sent_length --train_path path/to/train.csv \
       --test_path path/to/train.csv --max_len max_sent_length --distortion_ratio distortion_ratio
