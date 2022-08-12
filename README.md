@@ -46,14 +46,22 @@ To be added
 # Results
 To be added
 
-# Training on Other Languages
+# Fine tune the published models
+* Download one of the published model
+* Prepare the dataset as mentioned in [here](#ready)
+* run the following command to train the model
+```bash
+python train.py --pre_trained_path path/to/checkpoint.pt
+```bash
 
+# Training on Other Languages
 There are 2 different ways you can train on your data:
 1. Your data is ready: 
+<a name="ready"></a>
  * Your data on a form of 3 CSV files train, test, and dev and each CSV file looks like the following
 ```
 clean, distorted
-clean line, distorted line 
+clean line, distorted line
 clean line, distorted line
 ```
 * Change the valid characters in the constants.py file according to your language
