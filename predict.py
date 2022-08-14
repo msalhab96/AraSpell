@@ -76,11 +76,11 @@ class GreedyPredictor(BasePredictor):
         enc_inp = self.process_text(sentence)
         dec_inp = self.get_dec_start()
         while self.is_terminated(dec_inp)[0].item() is False:
-            preds, _ = self.model(
+            enc_inp, preds, _ = self.model.predict(
                 enc_inp=enc_inp,
                 dec_inp=dec_inp,
                 enc_mask=None,
-                dec_mask=None
+                dec_mask=torch.zeros(1, 1, dtype=torch.bool)
                 )
             preds = torch.argmax(preds, dim=-1)
             preds = preds[0, -1]
@@ -110,8 +110,8 @@ class BeamPredictor(BasePredictor):
             self, item: tuple, idx: Tensor, log_p: Tensor
             ) -> tuple:
         preds = torch.cat([item[0], idx.view(1, 1)], dim=-1)
-        length = preds.shape[0]
-        score = item[0] + log_p.item()
+        length = preds.shape[-1]
+        score = item[1] + log_p.item()
         norm_score = score / (length ** self.alpha)
         return preds, score, norm_score
 
@@ -120,22 +120,28 @@ class BeamPredictor(BasePredictor):
         # [Prediction, score, normalized score]
         in_progress = [(self.get_dec_start(), 0, 0)]
         completed = []
-        for item in in_progress:
+        counter = 0
+        while len(in_progress) != 0 and counter <= self.max_len:
             temp = []
-            preds, _ = self.model(
-                enc_inp=enc_inp,
-                dec_inp=item[0],
-                enc_mask=None,
-                dec_mask=None
-                )
-            values, indices = torch.topk(preds, k=self.beam_width, dim=-1)
-            for log_p, idx in zip(values, indices):
-                temp.append(self._get__updated_item(item, idx, log_p))
-            temp = sorted(temp, key=lambda x: x[-1], reverse=True)
-            temp = temp[:self.beam_width - len(completed)]
-            completed.extend(
-                list(filter(lambda x: x[0][-1] == self.eos, temp))
-                )
-            in_progress = list(filter(lambda x: x[0][-1] != self.eos, temp))
+            for item in in_progress:
+                enc_inp, preds, _ = self.model.predict(
+                    enc_inp=enc_inp,
+                    dec_inp=item[0],
+                    enc_mask=None,
+                    dec_mask=torch.zeros(1, 1, dtype=torch.bool)
+                    )
+                values, indices = torch.topk(preds, k=self.beam_width, dim=-1)
+                for log_p, idx in zip(values, indices):
+                    temp.append(self._get__updated_item(item, idx, log_p))
+                temp = sorted(temp, key=lambda x: x[-1], reverse=True)
+                temp = temp[:self.beam_width - len(completed)]
+                completed.extend(
+                    list(
+                        filter(lambda x: x[0][0][-1].item() == self.eos, temp)
+                        )
+                    )
+                in_progress = list(
+                    filter(lambda x: x[0][0][-1].item() != self.eos, temp)
+                    )
         results = max(completed, key=lambda x: x[-1])
         return self.finalize(results[0])
