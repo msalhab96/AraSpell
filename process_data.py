@@ -14,7 +14,8 @@ from processes import (
     SpacesRemover,
     ValidCharsKeeper,
     WordsFilter,
-    WordsNumberFilter
+    WordsNumberFilter,
+    CharsNormalizer
     )
 from utils import load_json, save_text_file
 from typing import Union, List
@@ -39,9 +40,10 @@ def get_file_processor(args):
         LoadFile(),
         *[LinesSplitter(sep=sep) for sep in args.sep],
         CharsRemover(constants.ARABIC_HARAKAT),
+        CharsNormalizer(constants.NORMLIZER_MAPPER),
         RepeatedCharsCollapsor(args.max_rep_chars),
-        SoloCharFilter(),
         NumbersFilter(),
+        SoloCharFilter(),
         WordsFilter(words),
         ValidCharsKeeper(constants.VALID_CHARS),
         SpacesRemover(),
@@ -119,14 +121,18 @@ def main(args) -> None:
     end = time.time()
     print(f'Files Processing completed in {end - start}')
     data = post_process(data)
+    df = None
     for i, ratio in enumerate(args.dist_ratios):
         distorter = get_text_distorter(ratio)
         dist = list(map(distorter.run, data))
-        df = pd.DataFrame({
-            'clean': data,
-            'distorted': dist
-        })
-        df.to_csv(f'file_{i}.csv', encoding='utf-8')
+        if df is None:
+            df = pd.DataFrame({
+                'clean': data,
+                f'distorted_{ratio}': dist
+            })
+        else:
+            df[f'distorted_{ratio}'] = dist
+    df.to_csv(f'data.csv', encoding='utf-8')
     save_text_file(args.save_path, '\n'.join(data))
 
 

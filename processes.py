@@ -194,3 +194,91 @@ class RandomWordsCollapsor(IProcess):
             return line
         idx = random.choice(indices)
         return line[: idx] + line[idx + 1:]
+
+
+class RandomNeighborReplacer(IProcess):
+
+    def __init__(self, keyboard_rows: List[str], blank: str) -> None:
+        super().__init__()
+        self.lines = keyboard_rows
+        self.blank = blank
+        self.n_rows = len(keyboard_rows)
+        self._mapper = {}
+        self.set_mapper()
+
+    def __get_left(
+            self, row_idx: int, col_idx: int
+            ) -> List[str]:
+        if col_idx == 0:
+            return []
+        return [self.lines[row_idx][col_idx - 1]]
+
+    def __get_right(
+            self, row_idx: int, col_idx: int
+            ) -> List[str]:
+        if col_idx == (len(self.lines[row_idx]) - 1):
+            return []
+        return self.lines[row_idx][col_idx + 1]
+
+    def __get_upper(
+            self, row_idx: int, col_idx: int
+            ) -> List[str]:
+        if row_idx == 0:
+            return []
+        line = self.lines[row_idx - 1]
+        start = max(0, col_idx - 1)
+        end = min(len(line), col_idx + 2)
+        return list(line[start: end])
+
+    def __get_lower(
+            self, row_idx: int, col_idx: int
+            ) -> List[str]:
+        if row_idx == (self.n_rows - 1):
+            return []
+        line = self.lines[row_idx + 1]
+        start = max(0, col_idx - 1)
+        end = min(len(line), col_idx + 2)
+        return list(line[start: end])
+
+    def set_mapper(self) -> None:
+        funcs = [
+            self.__get_left,
+            self.__get_right,
+            self.__get_upper,
+            self.__get_lower
+        ]
+        for row_idx in range(self.n_rows):
+            for col_idx in range(len(self.lines[row_idx])):
+                items = []
+                for func in funcs:
+                    items.extend(func(row_idx, col_idx))
+                items = list(
+                    filter(lambda x: x != self.blank, items)
+                    )
+                char = self.lines[row_idx][col_idx]
+                self._mapper[char] = items.copy()
+
+    def get_char(self, char: str) -> str:
+        if char not in self._mapper:
+            return char
+        return random.choice(self._mapper[char])
+
+    def execute(self, line: str) -> str:
+        length = len(line)
+        idx = random.randint(0, length - 1)
+        return line[:idx] + self.get_char(line[idx]) + line[idx + 1:]
+
+
+class CharsNormalizer(IProcess):
+
+    def __init__(self, mapper: dict) -> None:
+        super().__init__()
+        self.mapper = mapper
+
+    def _normalize(self, line: str) -> str:
+        for key, value in self.mapper.items():
+            line = line.replace(key, value)
+        return line
+
+    def execute(self, lines: List[str]):
+        return list(filter(self._normalize, lines))

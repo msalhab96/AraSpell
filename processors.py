@@ -8,6 +8,7 @@ from processes import (
     RandomCharRemover,
     RandomCharsInjector,
     RandomCharsSwapper,
+    RandomNeighborReplacer,
     RandomWordsCollapsor
     )
 
@@ -112,6 +113,9 @@ def get_text_distorter(ratio):
             RandomCharsInjector(constants.VALID_CHARS),
             RandomCharsSwapper(),
             RandomCharRemover(),
-            RandomWordsCollapsor()
+            RandomWordsCollapsor(),
+            RandomNeighborReplacer(
+                constants.KEYBOARD_KEYS, constants.KEYBOARD_BLANK
+                )
         ]
     )
