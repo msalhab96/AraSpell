@@ -65,7 +65,7 @@ def add_training_args(parser) -> None:
     )
     group.add_argument(
         '--opt_eps', default=1e-9, type=float,
-        help='Adam Optimizer\'s warmup steps'
+        help='Adam Optimizer\'s eps, used to avoid dividing by zero'
     )
     group.add_argument(
         '--dist_backend', default='nccl', type=str,
@@ -81,7 +81,7 @@ def add_training_args(parser) -> None:
     )
     group.add_argument(
         '--pre_trained_path', default=None, type=str,
-        help='The pretraining model path'
+        help='The pretrained model path'
     )
     group.add_argument(
         '--outdir', default='outdir/', type=str,
@@ -89,11 +89,11 @@ def add_training_args(parser) -> None:
     )
     group.add_argument(
         '--tokenizer_path', default='outdir/tokenizer.json', type=str,
-        help='The path to save the checkpoints and the logs to'
+        help='The path of the saved tokenizer, or to save the tokenizer to'
     )
     group.add_argument(
         '--alpha', default=0.1, type=float,
-        help='Labe smoothing value '
+        help='Label smoothing value '
     )
     group.add_argument(
         '--stop_after', default=5, type=int,
@@ -101,7 +101,7 @@ def add_training_args(parser) -> None:
     )
     group.add_argument(
         '--distortion_ratio', default=0.1, type=float,
-        help='The data distortion ratio'
+        help='The data distortion/corruption ratio'
     )
     group.add_argument(
         '--logger_type', default='tensor_board', type=str,
