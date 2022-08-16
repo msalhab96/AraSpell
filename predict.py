@@ -1,3 +1,4 @@
+from typing import List
 import torch
 from torch.nn import Module
 from torch import Tensor, BoolTensor
@@ -46,16 +47,17 @@ class BasePredictor(IPredictor):
         input = input.to(self.device)
         return input
 
-    def get_dec_start(self) -> Tensor:
+    def get_dec_start(self, length=1) -> Tensor:
         input = torch.LongTensor([[self.sos]])
+        input = input.repeat(length, 1)
         input = input.to(self.device)
         return input
 
     def finalize(self, results: Tensor):
         results = results[0].tolist()
         results = results[1:]
-        if results[-1] == self.eos:
-            results = results[:-1]
+        if self.eos in results:
+            results = results[:results.index(self.eos)]
         results = self.tokenizer.ids2tokens(results)
         return ''.join(results)
 
@@ -145,3 +147,62 @@ class BeamPredictor(BasePredictor):
                     )
         results = max(completed, key=lambda x: x[-1])
         return self.finalize(results[0])
+
+
+class BatchPredictor(BasePredictor):
+    def __init__(
+            self,
+            model: Module,
+            tokenizer: ITokenizer,
+            max_len: int,
+            processor: IProcessor,
+            device: str,
+            *args, **kwargs
+            ) -> None:
+        super().__init__(model, tokenizer, max_len, processor, device)
+        self.pad = tokenizer.special_tokens.pad_id
+
+    def pad_items(self, items: List[List[int]]):
+        results = []
+        masks = []
+        max_len = max([len(item) for item in items])
+        for item in items:
+            diff = max_len - len(item)
+            mask = [False] * len(item) + [True] * diff
+            item = item + [self.pad] * diff
+            results.append(item)
+            masks.append(mask)
+        return results, masks
+
+    def process_text(self, sentences: List[str]) -> Tensor:
+        sentences = self.processor.run(sentences)
+        items = self.tokenizer.batch_tokenizer(
+            sentences, add_sos=True, add_eos=True
+            )
+        items, mask = self.pad_items(items)
+        input = torch.LongTensor(items)
+        mask = torch.BoolTensor(mask)
+        input = input.to(self.device)
+        mask = mask.to(self.device)
+        return input, mask
+
+    @torch.no_grad()
+    def predict(self, sentences: List[str]):
+        enc_inp, mask = self.process_text(sentences)
+        dec_inp = self.get_dec_start(length=len(sentences))
+        is_terminated = torch.zeros(len(sentences), dtype=torch.bool)
+        while is_terminated.sum().item() != len(sentences):
+            enc_inp, preds, _ = self.model.predict(
+                enc_inp=enc_inp,
+                dec_inp=dec_inp,
+                enc_mask=mask,
+                dec_mask=torch.zeros_like(
+                    dec_inp, dtype=torch.bool
+                    ).to(self.device)
+                )
+            preds = torch.argmax(preds, dim=-1)
+            preds = preds[:, -1]
+            preds = preds.view(-1, 1)
+            dec_inp = torch.cat([dec_inp, preds], dim=-1)
+            is_terminated = is_terminated | self.is_terminated(preds).cpu()
+        return list(map(self.finalize, torch.unsqueeze(dec_inp, dim=1)))
