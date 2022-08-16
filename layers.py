@@ -136,7 +136,7 @@ class MultiHeadAtt(nn.Module):
         return att, result
 
     def _reshape(self, *args) -> List[Tensor]:
-        """Reshabes all the given list of tensor
+        """Reshapes all given list of tensor
         from [B, T, N] to [B, T, h, dk]
         Returns:
             List[Tensor]: list of all reshaped tensors
@@ -147,7 +147,7 @@ class MultiHeadAtt(nn.Module):
         ]
 
     def _pre_permute(self, *args) -> List[Tensor]:
-        """Permutes all the given list of tensors
+        """Permutes all given list of tensors
         from [B, T, h, dk] to become [h, B, T, dk].
 
         Returns:
@@ -226,6 +226,14 @@ class MultiHeadAtt(nn.Module):
 
 
 class MultiHeadSelfAtt(MultiHeadAtt):
+    """Implements the multi-head self attention module
+
+    Args:
+        d_model (int): The model dimensionality.
+        h (int): The number of heads.
+        p_dropout (float): The dropout ratio.
+        device (str): The device to map the operations to.
+    """
     def __init__(
             self,
             d_model: int,
@@ -323,6 +331,7 @@ class EncoderLayer(nn.Module):
         h (int): The number of heads.
         hidden_size (int): the hidden size of the feed forward module.
         p_dropout (float): The dropout ratio.
+        device (str): the device to map the operations to.
     """
     def __init__(
             self,
@@ -376,12 +385,8 @@ class DecoderLayer(nn.Module):
         d_model (int): The model dimensionality.
         h (int): The number of heads.
         p_dropout (float): The dropout ratio.
-        left_shift (int): The window size below the center for the slided MHA.
-        right_shift (int): The window size beyond the center for the
-        slided MHA.
-        max_steps (int): The maximum step allowed for the window to take for
-        the slided MHA.
         hidden_size (int): the hidden size of the feed forward module.
+        device (str): the device to map the operations to.
     """
     def __init__(
             self,
@@ -456,7 +461,13 @@ class DecoderLayer(nn.Module):
 
 
 class PositionalEmb(nn.Module):
-
+    """Implements the positional Embedding Module
+    Args:
+        voc_size (int): The number of covered vocabulary.
+        d_model (int): The model dimensionality.
+        pad_idx (int): The padding index to zero out its embedding.
+        device (str): The device to map the operations to.
+    """
     def __init__(
             self,
             voc_size: int,
