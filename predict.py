@@ -39,9 +39,9 @@ class BasePredictor(IPredictor):
         return preds[..., -1] == self.eos
 
     def process_text(self, sentence: str) -> Tensor:
-        sentence = self.processor.run(sentence)
+        sentence = self.processor.run([sentence])[0]
         assert len(sentence) != 0, 'The cleaned sentence\'s length is Zeros!'
-        tokens = self.tokenizer.tokenize(sentence, add_eos=True)
+        tokens = self.tokenizer.tokenize(sentence, add_sos=True, add_eos=True)
         input = torch.LongTensor([tokens])
         input = input.to(self.device)
         return input
