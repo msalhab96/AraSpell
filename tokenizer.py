@@ -176,7 +176,7 @@ class BaseTokenizer(ITokenizer):
         return list(map(lambda x: self._id_to_token[x], ids))
 
     def tokenize(
-            self, sentence: str, add_sos=False, add_eos=False
+            self, sentence: str, add_sos=False, add_eos=False, *args, **kwargs
             ) -> List[int]:
         sentence = self.preprocess_tokens(sentence)
         result = list(map(
@@ -189,8 +189,8 @@ class BaseTokenizer(ITokenizer):
             result += [self.special_tokens.eos_id]
         return result
 
-    def batch_tokenizer(self, data: List[str]) -> list:
-        return list(map(self.tokens2ids, data))
+    def batch_tokenizer(self, data: List[str], *args, **kwargs) -> List[List[int]]:
+        return [self.tokenize(item, *args, **kwargs) for item in data]
 
     def batch_detokenizer(self, data: List[int]) -> list:
         return list(map(self.ids2tokens, data))
