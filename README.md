@@ -51,7 +51,19 @@ docker build .
 You can try it out using the jupyter notebook provided ```infer.ipynb``` and download the tokenizer and one of the published models
 
 # Results
-To be added
+| Model Description | WER on 0.05 | CER on 0.05 | WER on 0.1 | CER on 0.1
+| ---------------------- | ----------- | ----------- | ----------- | ----------- |
+| Transformer-0.05 d=512, h=8, N=4  | None | None | None | None |
+| Transformer-0.1 d=512, h=8, N=4 | None | None | None | None |
+| Transformer-mixed d=512, h=8, N=4 | None | None | None | None |
+
+#### Pre-trained Models
+| Model | Description      | Link | Tokenizer |
+| ----------- | ----------- | ----------- | ----------- |
+| Transformer-0.05 | d=512, h=8, N=4      | [Here]()       | [Here]() | 
+| Transformer-0.1   | d=512, h=8, N=4 | [Here]()        | [Here]() | 
+| Transformer-mixed   | d=512, h=8, N=4 | [Here]()        | [Here]() | 
+
 
 # Fine tune the published models
 * Download one of the published model
