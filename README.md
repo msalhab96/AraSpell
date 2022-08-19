@@ -1,5 +1,5 @@
-# AraSpell (Arabic Spelling Correction with Transformer) 
-This work introduces AraSpell (Arabic Spell Correction with transformer) trained on more than 6.9 Million sentences crawled from Wikipedia
+# AraSpell (Arabic Spelling Correction) 
+This work introduces AraSpell (Arabic Spelling Correction) trained on more than 6.9 Million sentences
 
 # Model 
 We implemented the transformer model as described [here](https://arxiv.org/abs/1706.03762?context=cs), the image below shows the model architecture.
@@ -9,6 +9,18 @@ We implemented the transformer model as described [here](https://arxiv.org/abs/1
 # Datasets
 The data set used is Wikipedia dataset and can be found [here](https://www.kaggle.com/datasets/z3rocool/arabic-wikipedia-dump-2021) on Kaggle, and below are the training, testing, and dev sets we have used after performing the proper transformations.
 
+| Data      | Link |
+| ----------- | ----------- |
+| Train      | [Here](https://drive.google.com/file/d/1uu_Ga7MZ6sYHhxfuPBH3rVPglxmIqL0O/view?usp=sharing)       |
+| Test   | [Here](https://drive.google.com/file/d/1YwrWfISPXHQDaTtf3h6K-1-8bO3kH5lB/view?usp=sharing)        |
+| Dev   | [Here](https://drive.google.com/file/d/18As7vbgveFWsjt6wGqlgvjw8ax9FxJbF/view?usp=sharing)        |
+
+To generate the mixed dataset use the below for both ```train.csv``` and ```test.csv```
+
+```bash
+cat train.csv | awk -F , '{print $2","$3}' | sed "s/clean\,distorted_0\.05/clean,distorted_mix/g" > train_mix.csv
+cat train.csv | awk -F , '{if (NR>1) print $2","$4}' >> train_mix.csv
+```
 
 # Setup
 ### Setup development environment
