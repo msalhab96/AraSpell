@@ -689,7 +689,7 @@ class GRUStack(nn.Module):
         return out, h
 
 
-class RNNEncoer(nn.Module):
+class RNNEncoder(nn.Module):
 
     def __init__(
             self,
@@ -728,7 +728,6 @@ class RNNEncoer(nn.Module):
             hn.permute(1, 0, 2).contiguous().view(hn.shape[1], 1, -1)
             )
         hn = hn.permute(1, 0, 2)
-        print(hn.shape)
         return out, hn
 
 
