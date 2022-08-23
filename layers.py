@@ -4,6 +4,9 @@ import torch.nn as nn
 from typing import List, Tuple, Union
 from torch import Tensor
 from utils import get_positionals
+from torch.nn.utils.rnn import (
+    pad_packed_sequence, pack_padded_sequence
+    )
 
 
 class MultiHeadAtt(nn.Module):
@@ -577,3 +580,37 @@ class DecoderLayers(nn.Module):
                 key_mask=key_mask
                 )
         return out, att
+
+
+class PackedGRU(nn.Module):
+    def __init__(
+            self,
+            input_size: int,
+            hidden_size: int,
+            bidirectional: bool,
+            padding_value: Union[float, int],
+            ) -> None:
+        super().__init__()
+        self.gru = nn.GRU(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            bidirectional=bidirectional,
+            batch_first=True
+        )
+        self.bidirectional = bidirectional
+        self.hidden_size = hidden_size
+        self.padding_value = padding_value
+
+    def forward(self, x: Tensor, lengths: List[int], hn=None) -> Tensor:
+        packed_seq = pack_padded_sequence(
+            x, lengths, batch_first=True, enforce_sorted=False
+            )
+        if hn is None:
+            hn = torch.zeros(
+                2 if self.bidirectional else 1,
+                x.shape[0],
+                self.hidden_size
+                ).to(x.device)
+        output, hn = self.gru(packed_seq, hn)
+        output, lengths = pad_packed_sequence(output, batch_first=True)
+        return output, hn
