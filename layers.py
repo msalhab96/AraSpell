@@ -730,3 +730,25 @@ class RNNEncoer(nn.Module):
         hn = hn.permute(1, 0, 2)
         print(hn.shape)
         return out, hn
+
+
+class Attention(nn.Module):
+    def __init__(self, hidden_size: int) -> None:
+        super().__init__()
+        self.fc = nn.Linear(
+            in_features=2 * hidden_size,
+            out_features=hidden_size
+        )
+
+    def forward(self, query, key, value):
+        # query [1,  B, h_size]
+        # enc_vals [B, M, h_size]
+        query = query.permute(1, 0, 2)
+        key = key.permute(0, 2, 1)
+        e = torch.softmax(torch.matmul(query, key), dim=-1)
+        key = key.permute(0, 2, 1)
+        result = torch.matmul(e, value)
+        result = torch.cat([result, query], dim=-1)
+        result = self.fc(result)
+        result = result.permute(1, 0, 2)
+        return result
