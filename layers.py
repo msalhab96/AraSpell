@@ -752,3 +752,86 @@ class Attention(nn.Module):
         result = self.fc(result)
         result = result.permute(1, 0, 2)
         return result
+
+
+class RNNDecoder(nn.Module):
+    def __init__(
+            self,
+            max_len: int,
+            voc_size: int,
+            emb_size: int,
+            n_layers: int,
+            hidden_size: int,
+            p_dropout: float,
+            bidirectional: bool,
+            padding_idx: int,
+            padding_value: Union[float, int]
+            ) -> None:
+        super().__init__()
+        self.embedding = nn.Embedding(
+            num_embeddings=voc_size,
+            embedding_dim=emb_size,
+            padding_idx=padding_idx
+        )
+        self.gru_stack = GRUStack(
+            n_layers=n_layers - 1,
+            inp_size=emb_size,
+            hidden_size=hidden_size,
+            p_dropout=p_dropout,
+            bidirectional=False,
+            padding_value=padding_value
+        )
+        self.gru = nn.GRU(
+            input_size=hidden_size,
+            hidden_size=hidden_size,
+            bidirectional=False,
+            batch_first=True
+        )
+        self.pred_fc = nn.Linear(
+            in_features=hidden_size,
+            out_features=voc_size
+        )
+        self.max_len = max_len
+        self.attention = Attention(
+            hidden_size=hidden_size
+            )
+        self.key_fc = nn.Linear(
+            in_features=hidden_size,
+            out_features=hidden_size
+        )
+        self.value_fc = nn.Linear(
+            in_features=hidden_size,
+            out_features=hidden_size
+        )
+        self.query_fc = nn.Linear(
+            in_features=hidden_size,
+            out_features=hidden_size
+        )
+
+    def _process_query(self, h: Tensor):
+        h = h.permute(1, 0, 2)
+        h = h.contiguous().view(h.shape[0], 1, -1)
+        h = self.query_fc(h)
+        h = h.permute(1, 0, 2)
+        return h
+
+    def forward(
+            self,
+            enc_values: Tensor,
+            hn: Tensor,
+            x: Tensor,
+            lengths: Tensor
+            ) -> Tensor:
+        max_len = lengths.max().item()
+        result = None
+        out = self.embedding(x)
+        out, _ = self.gru_stack(out, lengths, hn=hn)
+        key = self.key_fc(enc_values)
+        value = self.value_fc(enc_values)
+        for i in range(max_len):
+            output, hn = self.gru(out[..., i:i+1, :], hn)
+            result = out if result is None else torch.cat([result, output], dim=1)
+            hn = self._process_query(hn)
+            hn = self.attention(key=key, value=value, query=hn)
+        result = self.pred_fc(result)
+        return result
