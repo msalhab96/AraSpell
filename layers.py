@@ -658,3 +658,32 @@ class GRUBlock(nn.Module):
         out = self.bnorm(out)
         out = out.permute(0, 2, 1)
         return out, h
+
+
+class GRUStack(nn.Module):
+    def __init__(
+            self,
+            n_layers: int,
+            inp_size: int,
+            hidden_size: int,
+            p_dropout: float,
+            bidirectional: bool,
+            padding_value: Union[float, int]
+            ) -> None:
+        super().__init__()
+        self.grus = nn.ModuleList([
+            GRUBlock(
+                inp_size=inp_size if i == 0 else hidden_size,
+                hidden_size=hidden_size,
+                p_dropout=p_dropout,
+                bidirectional=bidirectional,
+                padding_value=padding_value
+            )
+            for i in range(n_layers)
+        ])
+
+    def forward(self, x: Tensor, lengths: List[int], hn=None) -> Tensor:
+        out = x
+        for layer in self.grus:
+            out, h = layer(out, lengths, hn=hn)
+        return out, h
