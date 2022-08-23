@@ -750,7 +750,7 @@ class Attention(nn.Module):
         result = torch.cat([result, query], dim=-1)
         result = self.fc(result)
         result = result.permute(1, 0, 2)
-        return result
+        return result, e
 
 
 class RNNDecoder(nn.Module):
@@ -827,10 +827,12 @@ class RNNDecoder(nn.Module):
         out, _ = self.gru_stack(out, lengths, hn=hn)
         key = self.key_fc(enc_values)
         value = self.value_fc(enc_values)
+        attention = None
         for i in range(max_len):
             output, hn = self.gru(out[..., i:i+1, :], hn)
             result = out if result is None else torch.cat([result, output], dim=1)
             hn = self._process_query(hn)
-            hn = self.attention(key=key, value=value, query=hn)
+            hn, att = self.attention(key=key, value=value, query=hn)
+            attention = att if attention is None else torch.cat([attention, att], dim=1)
         result = self.pred_fc(result)
-        return result
+        return result, attention
