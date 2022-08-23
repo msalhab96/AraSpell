@@ -687,3 +687,46 @@ class GRUStack(nn.Module):
         for layer in self.grus:
             out, h = layer(out, lengths, hn=hn)
         return out, h
+
+
+class RNNEncoer(nn.Module):
+
+    def __init__(
+            self,
+            voc_size: int,
+            emb_size: int,
+            n_layers: int,
+            hidden_size: int,
+            p_dropout: float,
+            bidirectional: bool,
+            padding_idx: int,
+            padding_value: Union[float, int],
+            ) -> None:
+        super().__init__()
+        self.embedding = nn.Embedding(
+            num_embeddings=voc_size,
+            embedding_dim=emb_size,
+            padding_idx=padding_idx
+        )
+        self.gru_stack = GRUStack(
+            n_layers=n_layers,
+            inp_size=emb_size,
+            hidden_size=hidden_size,
+            p_dropout=p_dropout,
+            bidirectional=bidirectional,
+            padding_value=padding_value
+        )
+        self.h_fc = nn.Linear(
+            in_features=2 * hidden_size if bidirectional else hidden_size,
+            out_features=hidden_size
+        )
+
+    def forward(self, x: Tensor, lengths: Tensor) -> Tensor:
+        out = self.embedding(x)
+        out, hn = self.gru_stack(out, lengths)
+        hn = self.h_fc(
+            hn.permute(1, 0, 2).contiguous().view(hn.shape[1], 1, -1)
+            )
+        hn = hn.permute(1, 0, 2)
+        print(hn.shape)
+        return out, hn
