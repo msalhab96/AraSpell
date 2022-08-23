@@ -614,3 +614,47 @@ class PackedGRU(nn.Module):
         output, hn = self.gru(packed_seq, hn)
         output, lengths = pad_packed_sequence(output, batch_first=True)
         return output, hn
+
+
+class GRUBlock(nn.Module):
+    def __init__(
+            self,
+            inp_size: int,
+            hidden_size: int,
+            p_dropout: float,
+            bidirectional: bool,
+            padding_value: Union[float, int]
+            ) -> None:
+        super().__init__()
+        self.gru = PackedGRU(
+            input_size=inp_size,
+            hidden_size=hidden_size,
+            bidirectional=bidirectional,
+            padding_value=padding_value
+        )
+
+        self.ff = FeedForward(
+            d_model=hidden_size if bidirectional is False else 2 * hidden_size,
+            hidden_size=2 * hidden_size if bidirectional is False else 4 * hidden_size,
+            p_dropout=p_dropout
+        )
+        self.bidirectional = bidirectional
+        self.fc = nn.Linear(
+            in_features=2 * hidden_size,
+            out_features=hidden_size
+        )
+        self.dropout = nn.Dropout(p_dropout)
+        self.bnorm = nn.BatchNorm1d(num_features=hidden_size)
+
+    def forward(
+            self, x: Tensor, lengths: List[int], hn=None
+            ) -> Tuple[Tensor, Tensor]:
+        out, h = self.gru(x, lengths, hn=hn)
+        out = self.dropout(out)
+        out = self.ff(out)
+        if self.bidirectional is True:
+            out = self.fc(out)
+        out = out.permute(0, 2, 1)
+        out = self.bnorm(out)
+        out = out.permute(0, 2, 1)
+        return out, h
