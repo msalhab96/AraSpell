@@ -822,15 +822,15 @@ class RNNDecoder(nn.Module):
             lengths: Tensor
             ) -> Tensor:
         max_len = lengths.max().item()
-        result = None
         out = self.embedding(x)
         out, _ = self.gru_stack(out, lengths, hn=hn)
         key = self.key_fc(enc_values)
         value = self.value_fc(enc_values)
         attention = None
+        result = torch.zeros_like(out)
         for i in range(max_len):
             output, hn = self.gru(out[..., i:i+1, :], hn)
-            result = out if result is None else torch.cat([result, output], dim=1)
+            result[:, i:i+1, :] = output
             hn = self._process_query(hn)
             hn, att = self.attention(key=key, value=value, query=hn)
             attention = att if attention is None else torch.cat([attention, att], dim=1)
