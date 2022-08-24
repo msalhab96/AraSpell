@@ -681,12 +681,16 @@ class GRUStack(nn.Module):
             )
             for i in range(n_layers)
         ])
+        self.hidden_size = hidden_size
 
     def forward(self, x: Tensor, lengths: List[int], hn=None) -> Tensor:
         out = x
-        for layer in self.grus:
+        hns = []
+        for i, layer in enumerate(self.grus):
             out, h = layer(out, lengths, hn=hn)
-        return out, h
+            hns.append(h)
+        hns = torch.vstack(hns)
+        return out, hns
 
 
 class RNNEncoder(nn.Module):
@@ -724,10 +728,10 @@ class RNNEncoder(nn.Module):
     def forward(self, x: Tensor, lengths: Tensor) -> Tensor:
         out = self.embedding(x)
         out, hn = self.gru_stack(out, lengths)
-        hn = self.h_fc(
-            hn.permute(1, 0, 2).contiguous().view(hn.shape[1], 1, -1)
-            )
-        hn = hn.permute(1, 0, 2)
+        # hn = self.h_fc(
+        #     hn.permute(1, 0, 2).contiguous().view(hn.shape[1], 1, -1)
+        #     )
+        # hn = hn.permute(1, 0, 2)
         return out, hn
 
 
@@ -823,16 +827,18 @@ class RNNDecoder(nn.Module):
             ) -> Tensor:
         max_len = lengths.max().item()
         out = self.embedding(x)
-        out, _ = self.gru_stack(out, lengths, hn=hn)
+        out, _ = self.gru_stack(out, lengths, hn=hn[:-1, ...])
+        hn = hn[-1:, ...]
         key = self.key_fc(enc_values)
         value = self.value_fc(enc_values)
         attention = None
-        result = torch.zeros_like(out)
+        result = []
         for i in range(max_len):
             output, hn = self.gru(out[..., i:i+1, :], hn)
-            result[:, i:i+1, :] = output
+            result.append(output)
             hn = self._process_query(hn)
             hn, att = self.attention(key=key, value=value, query=hn)
             attention = att if attention is None else torch.cat([attention, att], dim=1)
+        result = torch.hstack(result)
         result = self.pred_fc(result)
         return result, attention
