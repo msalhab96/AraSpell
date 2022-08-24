@@ -6,7 +6,7 @@ from data import get_train_test_loaders
 from interfaces import ILogger
 from logger import get_logger
 from loss import get_criterion
-from model import get_model
+from models import get_model
 from optimizer import get_optimizer
 from tokenizer import get_tokenizer
 from torch.nn.parallel import DistributedDataParallel
