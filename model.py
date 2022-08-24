@@ -108,8 +108,8 @@ class RNN(nn.Module):
             enc_mask: Tensor,
             dec_mask: Tensor
             ) -> Tuple[Tensor, Tensor]:
-        enc_lengths = self.get_lengths(enc_mask)
-        dec_lengths = self.get_lengths(dec_mask)
+        enc_lengths = self.get_lengths(enc_mask).cpu()
+        dec_lengths = self.get_lengths(dec_mask).cpu()
         enc_values, h = self.encoder(enc_inp, enc_lengths)
         result, attention = self.decoder(
             enc_values=enc_values,
@@ -117,7 +117,7 @@ class RNN(nn.Module):
             x=dec_inp,
             lengths=dec_lengths
             )
-        return result, attention
+        return nn.functional.log_softmax(result, dim=-1), attention
 
 
 def get_model(

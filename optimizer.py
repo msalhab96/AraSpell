@@ -55,14 +55,11 @@ class AdamWarmup:
 
 class AdamOptim(Adam):
     def __init__(self, parameters, lr=0.001, *args, **kwargs) -> None:
-        super().__init__()
-        self.optimizer = Adam(
-            parameters, lr=lr
-            )
+        super().__init__(parameters, lr=lr)
         self.counter = 0
 
     def load_state_dict(self, state_dict, *args, **kwargs) -> None:
-        self.optimizer.load_state_dict(state_dict)
+        super().load_state_dict(state_dict)
 
 
 def get_optimizer(args, parameters: Iterator) -> object:
