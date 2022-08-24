@@ -53,11 +53,28 @@ class AdamWarmup:
         self.counter = counter
 
 
+class AdamOptim(Adam):
+    def __init__(self, parameters, lr=0.001, *args, **kwargs) -> None:
+        super().__init__()
+        self.optimizer = Adam(
+            parameters, lr=lr
+            )
+        self.counter = 0
+
+    def load_state_dict(self, state_dict, *args, **kwargs) -> None:
+        self.optimizer.load_state_dict(state_dict)
+
+
 def get_optimizer(args, parameters: Iterator) -> object:
-    return AdamWarmup(
+    mapper = {
+        'adam': AdamOptim,
+        'adamw': AdamWarmup
+    }
+    return mapper[args.optim](
         parameters=parameters,
         betas=args.opt_betas,
         eps=args.opt_eps,
         warmup_staps=args.warmup_staps,
-        d_model=args.d_model
+        d_model=args.d_model,
+        lr=args.lr
     )

@@ -122,6 +122,14 @@ def add_training_args(parser) -> None:
         '--logdir', default='outdir/logs', type=str,
         help='The directory to save the logs to'
     )
+    group.add_argument(
+        '--optim', default='adamw', type=str,
+        help='The optimizer to use, either adam or adamw'
+    )
+    group.add_argument(
+        '--lr', default=0.001, type=float,
+        help='The learning rate, it is only used when adam optimizer used'
+    )
 
 
 def get_preprocessing_args():
