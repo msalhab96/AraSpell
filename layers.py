@@ -842,9 +842,9 @@ class RNNDecoder(nn.Module):
         if enc_values is not None:
             key = self.key_fc(enc_values)
             value = self.value_fc(enc_values)
-        output, hn = self.gru(out, hn)
-        result = self.pred_fc(output)
         hn = self._process_query(hn)
         hn, att = self.attention(key=key, value=value, query=hn)
+        output, hn = self.gru(out, hn)
+        result = self.pred_fc(output)
         hn = torch.cat([h, hn], dim=0)
         return hn, att, result, key, value
