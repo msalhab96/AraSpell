@@ -32,7 +32,7 @@ def add_model_args(parser) -> None:
     )
     group.add_argument(
         '--model', default='transformer', type=str,
-        help='The model architecture, either rnn, or transformer'
+        help='The model architecture, either seq2seqrnn, basicrnn, or transformer'
     )
 
 
@@ -238,7 +238,7 @@ def get_rnn_args(
 def get_model_args(
         args, voc_size: int, rank: int, pad_idx: int
         ) -> dict:
-    if args.model == 'rnn':
+    if args.model in ['seq2seqrnn', 'basicrnn']:
         return get_rnn_args(
             args, voc_size, rank, pad_idx
             )
