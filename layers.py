@@ -769,18 +769,12 @@ class RNNDecoder(nn.Module):
             padding_idx=padding_idx
         )
         self.gru_stack = GRUStack(
-            n_layers=n_layers - 1,
+            n_layers=n_layers,
             inp_size=emb_size,
             hidden_size=hidden_size,
             p_dropout=p_dropout,
             bidirectional=False,
             padding_value=padding_value
-        )
-        self.gru = nn.GRU(
-            input_size=hidden_size,
-            hidden_size=hidden_size,
-            bidirectional=False,
-            batch_first=True
         )
         self.pred_fc = nn.Linear(
             in_features=hidden_size,
@@ -819,19 +813,22 @@ class RNNDecoder(nn.Module):
             ) -> Tensor:
         max_len = lengths.max().item()
         out = self.embedding(x)
-        out, _ = self.gru_stack(out, lengths, hn=hn[:-1, ...])
-        hn = hn[-1:, ...]
         key = self.key_fc(enc_values)
         value = self.value_fc(enc_values)
-        attention = None
+        attention = []
         result = []
         for i in range(max_len):
-            hn = self._process_query(hn)
+            step_lens = torch.ones(x.shape[0], dtype=torch.long)
+            hn = self.query_fc(hn)
             hn, att = self.attention(key=key, value=value, query=hn)
-            output, hn = self.gru(out[..., i:i+1, :], hn)
+            output, hn = self.gru_stack(
+                out[..., i:i+1, :], lengths=step_lens, hn=hn
+                )
             result.append(output)
-            attention = att if attention is None else torch.cat([attention, att], dim=1)
+            # We can return all layers' attention rather than the last one!
+            attention.append(att[:, -1:, :])
         result = torch.hstack(result)
+        attention = torch.hstack(attention)
         result = self.pred_fc(result)
         return result, attention
 
