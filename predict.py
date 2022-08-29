@@ -62,7 +62,7 @@ class BasePredictor(IPredictor):
         return ''.join(results)
 
 
-class GreedyPredictor(BasePredictor):
+class TransformerGreedyPredictor(BasePredictor):
     def __init__(
             self,
             model: Module,
@@ -88,6 +88,43 @@ class GreedyPredictor(BasePredictor):
             preds = preds[0, -1]
             preds = preds.view(1, 1)
             dec_inp = torch.cat([dec_inp, preds], dim=-1)
+        return self.finalize(dec_inp)
+
+
+class Seq2SeqGreedyPredictor(BasePredictor):
+    def __init__(
+            self,
+            model: Module,
+            tokenizer: ITokenizer,
+            max_len: int,
+            processor: IProcessor,
+            device: str
+            ) -> None:
+        super().__init__(model, tokenizer, max_len, processor, device)
+
+    @torch.no_grad()
+    def predict(self, sentence: str):
+        enc_inp = self.process_text(sentence)
+        dec_inp = self.get_dec_start()
+        key = None
+        value = None
+        h = None
+        enc_mask = torch.BoolTensor([[False] * enc_inp.shape[1]])
+        i = 0
+        while self.is_terminated(dec_inp)[0].item() is False:
+            h, att, result, key, value = self.model.predict(
+                dec_inp=dec_inp[:, i:i+1],
+                enc_inp=enc_inp,
+                enc_mask=enc_mask,
+                h=h,
+                key=key,
+                value=value
+            )
+            preds = torch.argmax(result, dim=-1)
+            preds = preds[0, -1]
+            preds = preds.view(1, 1)
+            dec_inp = torch.cat([dec_inp, preds], dim=-1)
+            i += 1
         return self.finalize(dec_inp)
 
 
@@ -206,3 +243,29 @@ class BatchPredictor(BasePredictor):
             dec_inp = torch.cat([dec_inp, preds], dim=-1)
             is_terminated = is_terminated | self.is_terminated(preds).cpu()
         return list(map(self.finalize, torch.unsqueeze(dec_inp, dim=1)))
+
+
+def get_predictor(
+        args,
+        model,
+        tokenizer,
+        max_len,
+        processor,
+        device
+        ):
+    if args.model == 'transformer':
+        return TransformerGreedyPredictor(
+            model=model,
+            tokenizer=tokenizer,
+            max_len=max_len,
+            processor=processor,
+            device=device
+        )
+    if args.model == 'seq2seqrnn':
+        return Seq2SeqGreedyPredictor(
+            model=model,
+            tokenizer=tokenizer,
+            max_len=max_len,
+            processor=processor,
+            device=device
+        )
