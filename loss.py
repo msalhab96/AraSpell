@@ -62,6 +62,9 @@ class Loss(nn.Module):
             ) -> Tensor:
         # results of shape [B, M, voc_size]
         # targets of shape [B, M]
+        max_len = preds.shape[1]
+        mask = mask[:, :max_len]
+        target = target[:, :max_len]
         mask = mask[:, 1:]
         mask = mask.to(preds.device)
         target = self.process_target(target, mask)

@@ -23,6 +23,17 @@ def add_model_args(parser) -> None:
         '--hidden_size', default=256, type=int,
         help='The model hidden dim'
     )
+    group.add_argument(
+        '--rnn_emb_size', default=512, type=int,
+        help='The embedding size of the RNN model'
+    )
+    group.add_argument(
+        '--bidirectional', default=False, action='store_true'
+    )
+    group.add_argument(
+        '--model', default='transformer', type=str,
+        help='The model architecture, either seq2seqrnn, basicrnn, or transformer'
+    )
 
 
 def add_training_args(parser) -> None:
@@ -111,6 +122,25 @@ def add_training_args(parser) -> None:
         '--logdir', default='outdir/logs', type=str,
         help='The directory to save the logs to'
     )
+    group.add_argument(
+        '--optim', default='adamw', type=str,
+        help='The optimizer to use, either adam, adamw, or adamexp'
+    )
+    group.add_argument(
+        '--lr', default=0.001, type=float,
+        help='The learning rate, it is only used when adam optimizer used'
+    )
+    group.add_argument(
+        '--decay_rate', default=0.001, type=float,
+        help='The learning decay rate, it is only used when adamexp optimizer used'
+    )
+    group.add_argument(
+        '--grad_norm', default=0.003, type=float,
+        help='The maximum norm for gradiant clipping.'
+    )
+    group.add_argument(
+        '--clip_grad', default=False, action='store_true'
+    )
 
 
 def get_preprocessing_args():
@@ -166,7 +196,10 @@ def get_train_args():
     return parser.parse_args()
 
 
-def get_model_args(args, voc_size: int, rank: int, pad_idx: int) -> dict:
+def get_transformer_args(
+        args, voc_size: int, rank: int, pad_idx: int
+        ) -> dict:
+
     enc_params = {
         'n_layers': args.n_layers,
         'voc_size': voc_size,
@@ -193,3 +226,33 @@ def get_model_args(args, voc_size: int, rank: int, pad_idx: int) -> dict:
         'dec_params': dec_params,
         **params
     }
+
+
+def get_rnn_args(
+        args, voc_size: int, rank: int, pad_idx: int
+        ) -> dict:
+    max_len = args.max_len
+    max_len += int(args.max_len * args.distortion_ratio)
+    return {
+        'max_len': max_len,
+        'voc_size': voc_size,
+        'emb_size': args.rnn_emb_size,
+        'n_layers': args.n_layers,
+        'hidden_size': args.hidden_size,
+        'p_dropout': args.p_dropout,
+        'bidirectional': args.bidirectional,
+        'padding_idx': pad_idx,
+        'padding_value': 0
+    }
+
+
+def get_model_args(
+        args, voc_size: int, rank: int, pad_idx: int
+        ) -> dict:
+    if args.model in ['seq2seqrnn', 'basicrnn']:
+        return get_rnn_args(
+            args, voc_size, rank, pad_idx
+            )
+    return get_transformer_args(
+        args, voc_size, rank, pad_idx
+    )
