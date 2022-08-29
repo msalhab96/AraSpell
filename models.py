@@ -1,5 +1,6 @@
 from typing import Tuple, Union
 from args import get_model_args
+from interfaces import IPredictorStep
 from torch import nn
 from layers import (
     Attention,
@@ -137,7 +138,6 @@ class Seq2SeqRNN(nn.Module):
             value=None
             ):
         enc_lengths = self.get_lengths(enc_mask)
-        dec_lengths = torch.ones(dec_inp.shape[0])
         if key is None and value is None:
             enc_values, h = self.encoder(enc_inp, enc_lengths)
         else:
@@ -145,7 +145,6 @@ class Seq2SeqRNN(nn.Module):
         h, att, result, key, value = self.decoder.predict(
             hn=h,
             x=dec_inp,
-            lengths=dec_lengths,
             enc_values=enc_values,
             key=key,
             value=value
