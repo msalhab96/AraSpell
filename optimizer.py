@@ -62,10 +62,52 @@ class AdamOptim(Adam):
         super().load_state_dict(state_dict)
 
 
+class AdamExpDecay:
+    def __init__(
+            self,
+            parameters: Iterator,
+            lr: float,
+            decay_rate: int,
+            *args,
+            **kwargs
+            ):
+        self.optimizer = Adam(
+            parameters,
+            lr=lr
+        )
+        self.lr = lr
+        self.decay_rate = decay_rate
+        self.counter = 0
+
+    def get_lr(self, step: int) -> float:
+        return self.lr * (1 - (self.decay_rate/100)) ** step
+
+    def _update_lr(self) -> None:
+        self.counter += 1
+        lr = self.get_lr(self.counter)
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+
+    def step(self) -> None:
+        self.optimizer.step()
+        self._update_lr()
+
+    def zero_grad(self) -> None:
+        self.optimizer.zero_grad()
+
+    def state_dict(self):
+        return self.optimizer.state_dict()
+
+    def load_state_dict(self, state_dict, counter) -> None:
+        self.optimizer.load_state_dict(state_dict)
+        self.counter = counter
+
+
 def get_optimizer(args, parameters: Iterator) -> object:
     mapper = {
         'adam': AdamOptim,
-        'adamw': AdamWarmup
+        'adamw': AdamWarmup,
+        'adamexp': AdamExpDecay
     }
     return mapper[args.optim](
         parameters=parameters,
@@ -73,5 +115,6 @@ def get_optimizer(args, parameters: Iterator) -> object:
         eps=args.opt_eps,
         warmup_staps=args.warmup_staps,
         d_model=args.d_model,
-        lr=args.lr
+        lr=args.lr,
+        decay_rate=args.decay_rate
     )
