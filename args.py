@@ -124,11 +124,22 @@ def add_training_args(parser) -> None:
     )
     group.add_argument(
         '--optim', default='adamw', type=str,
-        help='The optimizer to use, either adam or adamw'
+        help='The optimizer to use, either adam, adamw, or adamexp'
     )
     group.add_argument(
         '--lr', default=0.001, type=float,
         help='The learning rate, it is only used when adam optimizer used'
+    )
+    group.add_argument(
+        '--decay_rate', default=0.001, type=float,
+        help='The learning decay rate, it is only used when adamexp optimizer used'
+    )
+    group.add_argument(
+        '--grad_norm', default=0.003, type=float,
+        help='The maximum norm for gradiant clipping.'
+    )
+    group.add_argument(
+        '--clip_grad', default=False, action='store_true'
     )
 
 
