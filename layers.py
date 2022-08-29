@@ -589,17 +589,20 @@ class PackedGRU(nn.Module):
             hidden_size: int,
             bidirectional: bool,
             padding_value: Union[float, int],
+            num_layers=1
             ) -> None:
         super().__init__()
         self.gru = nn.GRU(
             input_size=input_size,
             hidden_size=hidden_size,
             bidirectional=bidirectional,
+            num_layers=num_layers,
             batch_first=True
         )
         self.bidirectional = bidirectional
         self.hidden_size = hidden_size
         self.padding_value = padding_value
+        self.num_layers = num_layers
 
     def forward(self, x: Tensor, lengths: List[int], hn=None) -> Tensor:
         packed_seq = pack_padded_sequence(
@@ -607,7 +610,7 @@ class PackedGRU(nn.Module):
             )
         if hn is None:
             hn = torch.zeros(
-                2 if self.bidirectional else 1,
+                self.num_layers,
                 x.shape[0],
                 self.hidden_size
                 ).to(x.device)
@@ -639,12 +642,8 @@ class GRUBlock(nn.Module):
             p_dropout=p_dropout
         )
         self.bidirectional = bidirectional
-        self.fc = nn.Linear(
-            in_features=2 * hidden_size,
-            out_features=hidden_size
-        )
         self.dropout = nn.Dropout(p_dropout)
-        self.bnorm = nn.BatchNorm1d(num_features=hidden_size)
+        self.lnorm = nn.LayerNorm(normalized_shape=hidden_size)
 
     def forward(
             self, x: Tensor, lengths: List[int], hn=None
@@ -652,11 +651,7 @@ class GRUBlock(nn.Module):
         out, h = self.gru(x, lengths, hn=hn)
         out = self.dropout(out)
         out = self.ff(out)
-        if self.bidirectional is True:
-            out = self.fc(out)
-        out = out.permute(0, 2, 1)
-        out = self.bnorm(out)
-        out = out.permute(0, 2, 1)
+        out = self.lnorm(out)
         return out, h
 
 
@@ -681,16 +676,26 @@ class GRUStack(nn.Module):
             )
             for i in range(n_layers)
         ])
+        self.hidden_size = hidden_size
 
     def forward(self, x: Tensor, lengths: List[int], hn=None) -> Tensor:
         out = x
-        for layer in self.grus:
-            out, h = layer(out, lengths, hn=hn)
-        return out, h
+        hns = []
+        for i, layer in enumerate(self.grus):
+            if hn is not None:
+                out, h = layer(
+                    out,
+                    lengths,
+                    hn=hn if hn.shape[0] != len(self.grus) else hn[i:i+1, ...]
+                    )
+            else:
+                out, h = layer(out, lengths, hn=hn)
+            hns.append(h)
+        hns = torch.vstack(hns)
+        return out, hns
 
 
 class RNNEncoder(nn.Module):
-
     def __init__(
             self,
             voc_size: int,
@@ -716,18 +721,10 @@ class RNNEncoder(nn.Module):
             bidirectional=bidirectional,
             padding_value=padding_value
         )
-        self.h_fc = nn.Linear(
-            in_features=2 * hidden_size if bidirectional else hidden_size,
-            out_features=hidden_size
-        )
 
     def forward(self, x: Tensor, lengths: Tensor) -> Tensor:
         out = self.embedding(x)
         out, hn = self.gru_stack(out, lengths)
-        hn = self.h_fc(
-            hn.permute(1, 0, 2).contiguous().view(hn.shape[1], 1, -1)
-            )
-        hn = hn.permute(1, 0, 2)
         return out, hn
 
 
@@ -740,17 +737,16 @@ class Attention(nn.Module):
         )
 
     def forward(self, query, key, value):
-        # query [1,  B, h_size]
-        # enc_vals [B, M, h_size]
         query = query.permute(1, 0, 2)
         key = key.permute(0, 2, 1)
         e = torch.softmax(torch.matmul(query, key), dim=-1)
-        key = key.permute(0, 2, 1)
         result = torch.matmul(e, value)
+        if result.shape[0] != query.shape[0]:
+            query = query.repeat(result.shape[0], 1, 1)
         result = torch.cat([result, query], dim=-1)
         result = self.fc(result)
         result = result.permute(1, 0, 2)
-        return result
+        return result, e
 
 
 class RNNDecoder(nn.Module):
@@ -773,18 +769,12 @@ class RNNDecoder(nn.Module):
             padding_idx=padding_idx
         )
         self.gru_stack = GRUStack(
-            n_layers=n_layers - 1,
+            n_layers=n_layers,
             inp_size=emb_size,
             hidden_size=hidden_size,
             p_dropout=p_dropout,
             bidirectional=False,
             padding_value=padding_value
-        )
-        self.gru = nn.GRU(
-            input_size=hidden_size,
-            hidden_size=hidden_size,
-            bidirectional=False,
-            batch_first=True
         )
         self.pred_fc = nn.Linear(
             in_features=hidden_size,
@@ -822,15 +812,34 @@ class RNNDecoder(nn.Module):
             lengths: Tensor
             ) -> Tensor:
         max_len = lengths.max().item()
-        result = None
         out = self.embedding(x)
-        out, _ = self.gru_stack(out, lengths, hn=hn)
         key = self.key_fc(enc_values)
         value = self.value_fc(enc_values)
+        attention = []
+        result = []
         for i in range(max_len):
-            output, hn = self.gru(out[..., i:i+1, :], hn)
-            result = out if result is None else torch.cat([result, output], dim=1)
-            hn = self._process_query(hn)
-            hn = self.attention(key=key, value=value, query=hn)
+            step_lens = torch.ones(x.shape[0], dtype=torch.long)
+            hn = self.query_fc(hn)
+            hn, att = self.attention(key=key, value=value, query=hn)
+            output, hn = self.gru_stack(
+                out[..., i:i+1, :], lengths=step_lens, hn=hn
+                )
+            result.append(output)
+            # We can return all layers' attention rather than the last one!
+            attention.append(att[:, -1:, :])
+        result = torch.hstack(result)
+        attention = torch.hstack(attention)
         result = self.pred_fc(result)
-        return result
+        return result, attention
+
+    def predict(self, hn, x, enc_values, key=None, value=None):
+        out = self.embedding(x)
+        step_lens = torch.ones(x.shape[0], dtype=torch.long)
+        if enc_values is not None:
+            key = self.key_fc(enc_values)
+            value = self.value_fc(enc_values)
+        hn = self.query_fc(hn)
+        hn, att = self.attention(key=key, value=value, query=hn)
+        output, hn = self.gru_stack(out, lengths=step_lens, hn=hn)
+        result = self.pred_fc(output)
+        return hn, att, result, key, value
