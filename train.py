@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import sleep
 from typing import Union
 from args import get_train_args
 from callback import TermCallback, get_callback
@@ -17,6 +18,7 @@ import os
 from utils import load_state
 import socket
 from torch.multiprocessing import spawn
+import torch.nn as nn
 
 
 class DistTrainer:
@@ -41,6 +43,8 @@ class DistTrainer:
             world_size: int,
             rank: int,
             port: int,
+            clip_grad: bool,
+            grad_norm=None,
             ckpt=None
             ) -> None:
         self.callback = callback
@@ -64,11 +68,12 @@ class DistTrainer:
         if ckpt is not None:
             self._set_state(ckpt)
         self.init()
-
         self.model = DistributedDataParallel(
             self.model, device_ids=[self.rank]
             )
         self.history = dict()
+        self.grad_norm = grad_norm
+        self.clip_grad = clip_grad
 
     def _set_state(self, ckpt_path):
         model, optimizer, epoch, steps = load_state(ckpt_path)
@@ -184,6 +189,10 @@ class DistTrainer:
             preds, att = self.model(enc_inp, dec_inp, enc_mask, dec_mask)
             loss = self.criterion(preds, dec_inp, dec_mask)
             loss.backward()
+            if self.clip_grad is True:
+                nn.utils.clip_grad_norm_(
+                    self.model.parameters(), max_norm=self.grad_norm
+                    )
             self.optimizer.step()
             self.logger.log_step(self._train_loss_key, loss.item())
             total_loss += loss.item()
@@ -198,6 +207,8 @@ class DistTrainer:
 
 
 def get_trainer(rank: int, args):
+    if rank != 0:
+        sleep(2)
     callback = get_callback(args)
     logger = get_logger(args)
     tokenizer = get_tokenizer(args)
@@ -230,7 +241,9 @@ def get_trainer(rank: int, args):
         rank=rank,
         port=args.dist_port,
         url=url,
-        ckpt=args.pre_trained_path
+        ckpt=args.pre_trained_path,
+        grad_norm=args.grad_norm,
+        clip_grad=args.clip_grad
     )
 
 
