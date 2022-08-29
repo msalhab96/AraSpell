@@ -832,16 +832,14 @@ class RNNDecoder(nn.Module):
         result = self.pred_fc(result)
         return result, attention
 
-    def predict(self, hn, x, lengths, enc_values, key=None, value=None):
+    def predict(self, hn, x, enc_values, key=None, value=None):
         out = self.embedding(x)
-        out, h = self.gru_stack(out, lengths, hn=hn[:-1, ...])
-        hn = hn[-1:, ...]
+        step_lens = torch.ones(x.shape[0], dtype=torch.long)
         if enc_values is not None:
             key = self.key_fc(enc_values)
             value = self.value_fc(enc_values)
-        hn = self._process_query(hn)
+        hn = self.query_fc(hn)
         hn, att = self.attention(key=key, value=value, query=hn)
-        output, hn = self.gru(out, hn)
+        output, hn = self.gru_stack(out, lengths=step_lens, hn=hn)
         result = self.pred_fc(output)
-        hn = torch.cat([h, hn], dim=0)
         return hn, att, result, key, value
