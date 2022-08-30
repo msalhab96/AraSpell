@@ -1,6 +1,5 @@
 from typing import Tuple, Union
 from args import get_model_args
-from interfaces import IPredictorStep
 from torch import nn
 from layers import (
     Attention,
