@@ -136,7 +136,7 @@ class Seq2SeqRNN(nn.Module):
             key=None,
             value=None
             ):
-        enc_lengths = self.get_lengths(enc_mask)
+        enc_lengths = self.get_lengths(enc_mask).cpu()
         if key is None and value is None:
             enc_values, h = self.encoder(enc_inp, enc_lengths)
         else:
@@ -251,7 +251,7 @@ class Seq2SeqBasic(nn.Module):
         if length is None:
             length = torch.ones(enc_inp.shape[0]) * enc_inp.shape[1]
         enc_inp = self.enc_embedding(enc_inp)
-        enc_values, hn = self.encoder(enc_inp)
+        enc_values, hn = self.encoder(enc_inp, lengths=length)
         return enc_values, hn
 
 
