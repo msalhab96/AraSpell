@@ -1,5 +1,7 @@
 # AraSpell (Arabic Spelling Correction) 
-This work introduces AraSpell (Arabic Spelling Correction) trained on more than 6.9 Million sentences
+This work introduces AraSpell (Arabic Spelling Correction) trained on more than 6.9 Million sentences, the offical implemntation of [AraSpell Paper]().
+
+**The paper is available [here]()**
 
 # Model 
 We implemented 3 models arcthictures as described in the paper they are:
