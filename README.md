@@ -58,18 +58,25 @@ docker build .
 You can try it out using the jupyter notebook provided ```infer.ipynb``` and download the tokenizer and one of the published models
 
 # Results
-| Model Description | WER on 0.05 | CER on 0.05 | WER on 0.1 | CER on 0.1
+| Model | CER (%) on 5%  | CER (%) on 10% | WER (%) on 5%  | WER (%) on 10% |
 | ---------------------- | ----------- | ----------- | ----------- | ----------- |
-| Transformer-0.05 d=512, h=8, N=4  | None | None | None | None |
-| Transformer-0.1 d=512, h=8, N=4 | None | None | None | None |
-| Transformer-mixed d=512, h=8, N=4 | None | None | None | None |
+| Transformer_0.05 | 1.24 | 4.15 | 5.35 | 18.38 |
+| Transformer_0.1 | 1.45 | 2.82 | 5.95 | 10.36 |
+| Transformer_mixed | 1.11 | 2.8 | 4.8 | 10.65 |
+| Transformer_varied | 1.22 | 3.16 | 5.41 | 12.35 |
+| RNNB_0.05 | 1.74 | 4.45 | 7.76 | 18.8 |
+| RNNB_0.1 | 1.86 | 4.01 | 7.8 | 15.41 |
+| RNNB_mixed | 1.67 | 4.06 | 7.51 | 16.55 |
+| RNNB_varied | 1.77 | 4.36 | 8.14 | 18.01 |
+| VanillaRNN_0.05 | 1.89 | 4.99 | 8.33 | 20.67 |
+| VanillaRNN_0.1 | 2.01 | 4.52 | 18.19 | 16.95 |
+| VanillaRNN_mixed | 1.86 | 4.53 | 7.84 | 17.36 |
+| VanillaRNN_varied | 2.01 | 4.97 | 8.76 | 19.49 |
 
 #### Pre-trained Models
 | Model | Description      | Link | Tokenizer |
 | ----------- | ----------- | ----------- | ----------- |
-| Transformer-0.05 | d=512, h=8, N=4      | [Here]()       | [Here]() | 
-| Transformer-0.1   | d=512, h=8, N=4 | [Here]()        | [Here]() | 
-| Transformer-mixed   | d=512, h=8, N=4 | [Here]()        | [Here]() | 
+
 
 
 # Fine tune the published models
