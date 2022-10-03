@@ -2,9 +2,16 @@
 This work introduces AraSpell (Arabic Spelling Correction) trained on more than 6.9 Million sentences
 
 # Model 
-We implemented the transformer model as described [here](https://arxiv.org/abs/1706.03762?context=cs), the image below shows the model architecture.
+We implemented 3 models arcthictures as described in the paper they are:
+- Attentional vanilla Seq2Seq using RNN
+- Attentional Seq2Seq with stacked RNN blocks
+- Transformer
 
-![5625](https://user-images.githubusercontent.com/61272193/183622776-894b3701-6ab3-4749-80c3-013638fb69ac.jpg)
+The image below shows all the model architectures proposed and implemented
+
+![Capture](https://user-images.githubusercontent.com/61272193/193535699-fa42dceb-c651-4c8f-a0a8-54745af25feb.PNG)
+
+
 
 # Datasets
 The data set used is Wikipedia dataset and can be found [here](https://www.kaggle.com/datasets/z3rocool/arabic-wikipedia-dump-2021) on Kaggle, and below are the training, testing, and dev sets we have used after performing the proper transformations.
