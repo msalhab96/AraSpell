@@ -76,10 +76,7 @@ You can try it out using the jupyter notebook provided ```infer.ipynb``` and dow
 | VanillaRNN_varied | 2.01 | 4.97 | 8.76 | 19.49 |
 
 #### Pre-trained Models
-| Model | Description      | Link | Tokenizer |
-| ----------- | ----------- | ----------- | ----------- |
-
-
+All Pre-trained models are available [here](https://drive.google.com/drive/folders/113w5z1fMBVGLFAZu2IlCrRLWTIw37PE0)
 
 # Fine tune the published models
 * Download one of the published model
