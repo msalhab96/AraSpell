@@ -4,7 +4,7 @@ EXPOSE 6006
 
 EXPOSE 8888
 
-RUN apt-get --update && apt-get --upgrade
+RUN apt-get update -y && apt-get upgrade -y
 
 COPY . .
 
